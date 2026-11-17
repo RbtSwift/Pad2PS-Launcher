@@ -4,9 +4,14 @@ import { Game, ThemeId } from '../types';
 interface HeroBackdropProps {
   game: Game | null;
   theme: ThemeId;
+  isLight?: boolean;
 }
 
-export const HeroBackdrop: React.FC<HeroBackdropProps> = ({ game, theme }) => {
+export const HeroBackdrop: React.FC<HeroBackdropProps> = ({
+  game,
+  theme,
+  isLight = false,
+}) => {
   return (
     <div
       className="fixed inset-0 z-0 pointer-events-none overflow-hidden transition-colors duration-500"
@@ -23,12 +28,14 @@ export const HeroBackdrop: React.FC<HeroBackdropProps> = ({ game, theme }) => {
             src={game.coverUrl}
             alt=""
             referrerPolicy="no-referrer"
-            className="w-full h-full object-cover scale-110 blur-2xl opacity-30 transition-all duration-700"
+            className={`w-full h-full object-cover scale-110 blur-2xl transition-all duration-700 ${
+              isLight || theme === 'clean-light' ? 'opacity-15' : 'opacity-30'
+            }`}
           />
         </div>
       )}
 
-      {/* Radial and vertical dark gradient scrim adapting to theme deep bg */}
+      {/* Radial and vertical gradient scrim adapting to theme deep bg */}
       <div
         className="absolute inset-0"
         style={{
@@ -63,6 +70,22 @@ export const HeroBackdrop: React.FC<HeroBackdropProps> = ({ game, theme }) => {
         <div className="absolute inset-0 theme-atmosphere-pixel" />
       )}
 
+      {theme === 'ps2-classic' && (
+        <div className="absolute inset-0 theme-atmosphere-ps2" />
+      )}
+
+      {theme === 'synthwave' && (
+        <div className="absolute inset-0 theme-atmosphere-synthwave" />
+      )}
+
+      {theme === 'emerald-matrix' && (
+        <div className="absolute inset-0 theme-atmosphere-emerald" />
+      )}
+
+      {(theme === 'clean-light' || isLight) && (
+        <div className="absolute inset-0 theme-atmosphere-light" />
+      )}
+
       {/* Subtle ambient glow in active theme color */}
       <div
         className="absolute -top-32 left-1/2 -translate-x-1/2 w-[70vw] h-[42vh] rounded-full blur-[120px] opacity-20 transition-colors duration-500"
@@ -71,7 +94,7 @@ export const HeroBackdrop: React.FC<HeroBackdropProps> = ({ game, theme }) => {
         }}
       />
 
-      {/* Bottom dark vignette */}
+      {/* Bottom vignette */}
       <div
         className="absolute inset-x-0 bottom-0 h-44"
         style={{

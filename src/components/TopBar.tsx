@@ -1,14 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { Battery, BatteryCharging, Gamepad2, Search } from 'lucide-react';
-import { FilterTab } from '../types';
+import {
+  Battery,
+  BatteryCharging,
+  ExternalLink,
+  Gamepad2,
+  Search,
+} from 'lucide-react';
+import { DEFAULT_TRANSLATOR_URL } from '../data/defaultGames';
 import { Logo } from './Logo';
 
 interface TopBarProps {
-  activeTab: FilterTab;
-  activeConsole: string;
   connectedGamepad: string | null;
+  translatorUrl?: string;
+  onLogoClick?: () => void;
   onOpenSearch: () => void;
-  onOpenMenu: () => void;
 }
 
 interface BatteryManagerLike extends EventTarget {
@@ -16,20 +21,11 @@ interface BatteryManagerLike extends EventTarget {
   charging: boolean;
 }
 
-function getSectionDisplayName(tab: FilterTab, activeConsole: string): string {
-  if (tab === 'Todos') return 'Toda a Biblioteca';
-  if (tab === 'Emuladores' && activeConsole !== 'Todos') {
-    return `Emuladores · ${activeConsole}`;
-  }
-  return tab;
-}
-
 export const TopBar: React.FC<TopBarProps> = ({
-  activeTab,
-  activeConsole,
   connectedGamepad,
+  translatorUrl = DEFAULT_TRANSLATOR_URL,
+  onLogoClick,
   onOpenSearch,
-  onOpenMenu,
 }) => {
   const [timeStr, setTimeStr] = useState(() => {
     const now = new Date();
@@ -86,40 +82,49 @@ export const TopBar: React.FC<TopBarProps> = ({
     };
   }, []);
 
-  const sectionLabel = getSectionDisplayName(activeTab, activeConsole);
+  const safeTranslatorUrl = /^https?:\/\//i.test(translatorUrl.trim())
+    ? translatorUrl.trim()
+    : DEFAULT_TRANSLATOR_URL;
 
   return (
-    <header className="relative z-20 flex items-center justify-between gap-4 px-6 sm:px-10 lg:px-14 py-3.5 lg:py-4 shrink-0">
-      {/* Esquerda: Logo compacta + Nome da seção atual em destaque */}
-      <div className="flex items-center gap-4 sm:gap-5 min-w-0">
-        <button
-          type="button"
-          onClick={onOpenMenu}
-          title="Abrir Dock Central Pad2PS (Tab / Guide)"
-          className="cursor-pointer focus:outline-none hover:opacity-90 transition-opacity shrink-0"
+    <header className="relative z-20 flex items-center justify-between gap-4 px-6 sm:px-10 lg:px-16 py-4 lg:py-5 shrink-0">
+      {/* Esquerda: Logo compacta Pad2PS LAUNCHER */}
+      <button
+        type="button"
+        onClick={onLogoClick}
+        title="Ir para Biblioteca de Jogos"
+        className="cursor-pointer focus:outline-none hover:opacity-90 transition-opacity shrink-0"
+      >
+        <Logo size="sm" />
+      </button>
+
+      {/* Direita: Atalho Testador/Tradutor Pad2PS, Lupa de Busca, Controle, Bateria e Relógio Grande */}
+      <div className="flex items-center gap-3.5 sm:gap-5 shrink-0 whitespace-nowrap">
+        <a
+          href={safeTranslatorUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Abrir Testador / Tradutor Pad2PS (pad2ps.vercel.app)"
+          className="theme-control hidden sm:inline-flex items-center gap-2 px-3.5 py-2 border text-xs lg:text-sm font-semibold text-[var(--text-primary)] hover:border-[var(--accent)] transition-colors shrink-0"
+          style={{
+            backgroundColor:
+              'color-mix(in srgb, var(--bg-surface) 82%, transparent)',
+            borderColor: 'rgba(var(--accent-rgb), 0.45)',
+          }}
         >
-          <Logo size="sm" />
-        </button>
+          <ExternalLink
+            className="w-4 h-4 shrink-0"
+            style={{ color: 'var(--accent)' }}
+          />
+          <span>Testador / Tradutor Pad2PS</span>
+        </a>
 
-        <span
-          className="h-6 w-px shrink-0 hidden sm:block"
-          style={{ backgroundColor: 'var(--border-subtle)' }}
-          aria-hidden="true"
-        />
-
-        <span className="font-display text-lg sm:text-2xl lg:text-[26px] font-bold tracking-tight text-[var(--text-primary)] truncate">
-          {sectionLabel}
-        </span>
-      </div>
-
-      {/* Direita: Busca rápida, Controle conectado, Bateria e Relógio digital grande */}
-      <div className="flex items-center gap-4 sm:gap-6 shrink-0 whitespace-nowrap">
         <button
           type="button"
           onClick={onOpenSearch}
-          title="Buscar jogo (/)"
+          title="Busca Rápida com Teclado Virtual (/)"
           aria-label="Buscar jogo"
-          className="theme-control p-2.5 border text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-white/30 backdrop-blur-md transition-colors cursor-pointer shrink-0"
+          className="theme-control p-2.5 border text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent)] backdrop-blur-md transition-colors cursor-pointer shrink-0"
           style={{
             backgroundColor:
               'color-mix(in srgb, var(--bg-surface) 82%, transparent)',
@@ -130,7 +135,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         </button>
 
         <div
-          className="hidden md:flex items-center gap-2.5 text-base lg:text-lg text-[var(--text-primary)] shrink-0"
+          className="hidden md:flex items-center gap-2 text-base lg:text-lg text-[var(--text-primary)] shrink-0"
           title={
             connectedGamepad
               ? `Controle ativo: ${connectedGamepad}`
@@ -156,18 +161,18 @@ export const TopBar: React.FC<TopBarProps> = ({
           </span>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 text-base lg:text-lg font-mono-tech tabular-nums text-[var(--text-secondary)] shrink-0">
+        <div className="hidden sm:flex items-center gap-1.5 text-base lg:text-lg font-mono-tech tabular-nums text-[var(--text-secondary)] shrink-0">
           {batteryCharging ? (
             <BatteryCharging className="w-5 h-5 lg:w-6 lg:h-6 text-[#00FF88]" />
           ) : (
             <Battery className="w-5 h-5 lg:w-6 lg:h-6 text-[var(--text-secondary)]" />
           )}
-          <span className="font-medium text-[var(--text-primary)]">
+          <span className="font-semibold text-[var(--text-primary)]">
             {batteryLevel}%
           </span>
         </div>
 
-        <span className="font-display text-lg sm:text-xl lg:text-2xl font-bold tabular-nums text-[var(--text-primary)] tracking-tight shrink-0">
+        <span className="font-display text-xl lg:text-2xl font-bold tabular-nums text-[var(--text-primary)] tracking-tight shrink-0">
           {timeStr}
         </span>
       </div>

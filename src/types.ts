@@ -9,13 +9,36 @@ export type Platform =
   | 'Emulador'
   | 'Outro';
 
+export type LauncherPage = 'favorites' | 'library' | 'system';
+
+export type LibraryPlatformFilter =
+  | 'Todos'
+  | 'Steam'
+  | 'Epic'
+  | 'Heroic'
+  | 'GOG'
+  | 'Xbox'
+  | 'Lutris'
+  | 'itch.io'
+  | 'Emuladores';
+
+export type SystemCategory =
+  | 'appearance'
+  | 'controller'
+  | 'covers'
+  | 'library'
+  | 'power';
+
 export type FilterTab =
   | 'Início'
   | 'Todos'
   | 'Steam'
-  | 'Heroic / Epic'
-  | 'Heroic / Epic & GOG'
+  | 'Epic'
+  | 'Heroic'
   | 'GOG'
+  | 'Xbox'
+  | 'Lutris'
+  | 'itch.io'
   | 'Emuladores'
   | 'Favoritos';
 
@@ -24,12 +47,52 @@ export type SortMode = 'recent' | 'az' | 'most-played';
 export type ControllerLayout = 'playstation' | 'xbox' | 'nintendo' | 'auto';
 export type ResolvedControllerLayout = 'playstation' | 'xbox' | 'nintendo';
 
+export type RemappableAction =
+  | 'confirm'
+  | 'cancel'
+  | 'options'
+  | 'favorite'
+  | 'prevTab'
+  | 'nextTab'
+  | 'translator';
+
+export type GamepadButtonMapping = Record<RemappableAction, number>;
+
 export type ThemeId =
   | 'pad2ps-default'
   | 'futuristic'
   | 'horror'
   | 'cute'
-  | 'pixel';
+  | 'pixel'
+  | 'ps2-classic'
+  | 'synthwave'
+  | 'clean-light'
+  | 'emerald-matrix'
+  | 'custom';
+
+export type CustomBorderRadiusPreset = 'default' | 'cute' | 'tech' | 'pixel';
+export type CustomFontPreset = 'outfit' | 'jetbrains' | 'cinzel' | 'silkscreen';
+export type CustomSoundPreset =
+  | 'pad2ps-default'
+  | 'futuristic'
+  | 'cute'
+  | 'pixel'
+  | 'horror';
+
+export interface CustomThemeConfig {
+  accentHex: string;
+  bgDeep: string;
+  borderRadius: CustomBorderRadiusPreset;
+  fontPreset: CustomFontPreset;
+  soundPreset: CustomSoundPreset;
+}
+
+export type ScreensaverMode =
+  | 'minimal'
+  | 'library-slideshow'
+  | 'custom-image';
+
+export type IdleTimeoutMinutes = 0 | 5 | 10 | 15 | 30 | 60;
 
 export interface ThemeConfig {
   id: ThemeId;
@@ -40,6 +103,7 @@ export interface ThemeConfig {
   secondaryHex?: string;
   bgDeep: string;
   bgSurface: string;
+  isLight?: boolean;
 }
 
 export interface Game {
@@ -58,9 +122,13 @@ export interface Game {
 
 export interface LauncherSettings {
   theme: ThemeId;
+  customThemeConfig: CustomThemeConfig;
   soundEnabled: boolean;
   controllerLayout: ControllerLayout;
   translatorUrl: string;
+  idleTimeoutMinutes: IdleTimeoutMinutes;
+  screensaverMode: ScreensaverMode;
+  screensaverCustomImage: string;
 }
 
 export type ActiveModal =
@@ -71,8 +139,7 @@ export type ActiveModal =
   | 'add-game'
   | 'edit-game'
   | 'game-options'
-  | 'settings'
-  | 'power';
+  | 'cover-finder';
 
 declare global {
   interface Window {

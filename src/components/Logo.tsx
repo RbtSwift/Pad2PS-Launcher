@@ -4,6 +4,7 @@ import { Download } from 'lucide-react';
 interface LogoProps {
   accentHex?: string;
   size?: 'sm' | 'md' | 'lg';
+  forceLightText?: boolean;
   onDownloadPng?: () => void;
   showDownloadButton?: boolean;
 }
@@ -11,6 +12,7 @@ interface LogoProps {
 export const Logo: React.FC<LogoProps> = ({
   accentHex = 'var(--accent)',
   size = 'md',
+  forceLightText = false,
   onDownloadPng,
   showDownloadButton = false,
 }) => {
@@ -90,7 +92,10 @@ export const Logo: React.FC<LogoProps> = ({
       {/* Wordmark + LAUNCHER Tag */}
       <div className="flex items-center gap-2 whitespace-nowrap">
         <span
-          className={`font-display font-extrabold tracking-tight text-[#F4F4F6] ${textClass}`}
+          className={`font-display font-extrabold tracking-tight ${textClass}`}
+          style={{
+            color: forceLightText ? '#F4F4F6' : 'var(--text-primary)',
+          }}
         >
           Pad
           <span
@@ -104,8 +109,10 @@ export const Logo: React.FC<LogoProps> = ({
           PS
         </span>
         <span
-          className="font-display text-[10px] font-bold tracking-[0.22em] px-1.5 py-0.5 rounded bg-[#121218] text-[#F4F4F6] border"
+          className="font-display text-[10px] font-bold tracking-[0.22em] px-1.5 py-0.5 rounded border"
           style={{
+            backgroundColor: forceLightText ? '#121218' : 'var(--bg-surface)',
+            color: forceLightText ? '#F4F4F6' : 'var(--text-primary)',
             borderColor: 'rgba(var(--accent-rgb), 0.55)',
             boxShadow: '0 0 10px rgba(var(--accent-rgb), 0.18)',
           }}
@@ -120,7 +127,7 @@ export const Logo: React.FC<LogoProps> = ({
           onClick={onDownloadPng}
           title="Baixar Logo (PNG 1024x1024)"
           aria-label="Baixar Logo em PNG"
-          className="ml-0.5 p-1.5 rounded-lg text-[#94A3B8] hover:text-[#F4F4F6] hover:bg-[#121218] border border-transparent hover:border-[#27273A] transition-colors cursor-pointer"
+          className="ml-0.5 p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] border border-transparent hover:border-[var(--border-subtle)] transition-colors cursor-pointer"
         >
           <Download className="w-3.5 h-3.5" />
         </button>

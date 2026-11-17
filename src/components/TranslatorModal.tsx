@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
-import { Check, Copy, ExternalLink, Gamepad2, Sparkles, X } from 'lucide-react';
+import {
+  Check,
+  Copy,
+  ExternalLink,
+  Gamepad2,
+  RotateCcw,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import { DEFAULT_TRANSLATOR_URL } from '../data/defaultGames';
 import {
   CancelButtonIcon,
@@ -12,6 +20,7 @@ import {
 interface TranslatorModalProps {
   translatorUrl: string;
   gameTitle?: string;
+  onChangeTranslatorUrl: (url: string) => void;
   onClose: () => void;
 }
 
@@ -26,9 +35,11 @@ function getSafeTranslatorUrl(rawUrl: string): string {
 export const TranslatorModal: React.FC<TranslatorModalProps> = ({
   translatorUrl,
   gameTitle,
+  onChangeTranslatorUrl,
   onClose,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [editingUrl, setEditingUrl] = useState(false);
   const safeUrl = getSafeTranslatorUrl(translatorUrl);
 
   const handleCopy = async () => {
@@ -97,7 +108,6 @@ export const TranslatorModal: React.FC<TranslatorModalProps> = ({
           </button>
         </div>
 
-        {/* Explicação + Contexto do jogo */}
         <div className="space-y-4">
           <p className="text-sm sm:text-base text-[var(--text-primary)]/90 leading-relaxed">
             Converta instantaneamente prompts e comandos entre controles{' '}
@@ -133,7 +143,7 @@ export const TranslatorModal: React.FC<TranslatorModalProps> = ({
             </div>
           )}
 
-          {/* Tabela visual rápida de correspondência de botões */}
+          {/* Tabela visual rápida */}
           <div
             className="theme-control p-4 border space-y-3"
             style={{
@@ -231,41 +241,88 @@ export const TranslatorModal: React.FC<TranslatorModalProps> = ({
             </div>
           </div>
 
-          {/* URL configurada */}
+          {/* URL configurada + edição inline opcional */}
           <div
-            className="theme-control flex items-center justify-between gap-3 px-4 py-2.5 border"
+            className="theme-control p-3 border space-y-2"
             style={{
               backgroundColor: 'var(--bg-deep)',
               borderColor: 'var(--border-subtle)',
             }}
           >
-            <span className="font-mono-tech text-xs sm:text-sm text-[var(--text-secondary)] truncate">
-              {safeUrl}
-            </span>
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="theme-control inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[var(--text-primary)] border hover:border-white/40 transition-colors cursor-pointer shrink-0"
-              style={{
-                backgroundColor: 'var(--bg-surface)',
-                borderColor: 'var(--border-subtle)',
-              }}
-            >
-              {copied ? (
-                <>
-                  <Check
-                    className="w-3.5 h-3.5"
-                    style={{ color: 'var(--accent)' }}
-                  />
-                  <span>Copiado</span>
-                </>
+            <div className="flex items-center justify-between gap-2">
+              {editingUrl ? (
+                <input
+                  type="url"
+                  value={translatorUrl}
+                  onChange={(e) => onChangeTranslatorUrl(e.target.value)}
+                  placeholder={DEFAULT_TRANSLATOR_URL}
+                  aria-label="URL do Tradutor Pad2PS"
+                  className="theme-control flex-1 px-3 py-1.5 border text-xs sm:text-sm font-mono-tech text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+                  style={{
+                    backgroundColor: 'var(--bg-surface)',
+                    borderColor: 'var(--border-subtle)',
+                  }}
+                />
               ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Copiar Link</span>
-                </>
+                <span className="font-mono-tech text-xs sm:text-sm text-[var(--text-secondary)] truncate">
+                  {safeUrl}
+                </span>
               )}
-            </button>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setEditingUrl((v) => !v)}
+                  className="theme-control px-2.5 py-1.5 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] border transition-colors cursor-pointer"
+                  style={{
+                    backgroundColor: 'var(--bg-surface)',
+                    borderColor: 'var(--border-subtle)',
+                  }}
+                >
+                  {editingUrl ? 'Pronto' : 'Editar Link'}
+                </button>
+
+                {editingUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => onChangeTranslatorUrl(DEFAULT_TRANSLATOR_URL)}
+                    title="Restaurar padrão"
+                    className="theme-control p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] border transition-colors cursor-pointer"
+                    style={{
+                      backgroundColor: 'var(--bg-surface)',
+                      borderColor: 'var(--border-subtle)',
+                    }}
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    className="theme-control inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[var(--text-primary)] border hover:border-white/40 transition-colors cursor-pointer"
+                    style={{
+                      backgroundColor: 'var(--bg-surface)',
+                      borderColor: 'var(--border-subtle)',
+                    }}
+                  >
+                    {copied ? (
+                      <>
+                        <Check
+                          className="w-3.5 h-3.5"
+                          style={{ color: 'var(--accent)' }}
+                        />
+                        <span>Copiado</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copiar</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 

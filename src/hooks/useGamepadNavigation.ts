@@ -1,22 +1,34 @@
 import { useEffect, useRef, useState } from 'react';
-import { ControllerLayout, ResolvedControllerLayout } from '../types';
+import {
+  ControllerLayout,
+  GamepadButtonMapping,
+  ResolvedControllerLayout,
+} from '../types';
+import { DEFAULT_BUTTON_MAPPING } from '../utils/gamepadMapping';
 
 export interface GamepadActions {
+  buttonMapping?: GamepadButtonMapping;
+  isCapturingButton?: boolean;
+  isScreensaverActive?: boolean;
+  onCaptureButton?: (buttonIndex: number) => void;
+  onCaptureConflict?: (message: string) => void;
+  onWakeScreensaver?: () => void;
+  onGamepadActivity?: () => void;
   onLeft?: () => void;
   onRight?: () => void;
   onUp?: () => void;
   onDown?: () => void;
-  onConfirm?: () => void; // Cross / A / B(Nintendo) (0) or Enter
-  onCancel?: () => void; // Circle / B / A(Nintendo) (1) or Esc
-  onOptions?: () => void; // Square / X / Y(Nintendo) (2)
-  onFavorite?: () => void; // Triangle / Y / X(Nintendo) (3)
-  onPrevTab?: () => void; // L1 / LB / L (4)
-  onNextTab?: () => void; // R1 / RB / R (5)
+  onConfirm?: () => void; // Mapped confirm (default 0) or Enter
+  onCancel?: () => void; // Mapped cancel (default 1) or Esc
+  onOptions?: () => void; // Mapped options (default 2)
+  onFavorite?: () => void; // Mapped favorite/random (default 3)
+  onPrevTab?: () => void; // Mapped prevTab (default 4)
+  onNextTab?: () => void; // Mapped nextTab (default 5)
   onSettings?: () => void; // Start / Options / Menu / + (9)
   onSort?: () => void; // R3 (11) or S key
   onMenu?: () => void; // Guide / Home (16) or Tab key
   onSearch?: () => void; // '/' key
-  onTranslator?: () => void; // R2 / RT / ZR (7) or T key
+  onTranslator?: () => void; // Mapped translator (default 7) or T key
 }
 
 export function detectGamepadLayout(rawId: string | null): ResolvedControllerLayout {
@@ -64,12 +76,15 @@ function cleanGamepadName(rawId: string): string {
   if (/xbox/i.test(rawId)) return 'Controle Xbox';
   if (/8bitdo/i.test(rawId)) return '8BitDo Controller';
   if (/gamesir/i.test(rawId)) return 'GameSir Controller';
-  return cleaned.length > 26 ? `${cleaned.slice(0, 24)}…` : cleaned || 'Controle Conectado';
+  return cleaned.length > 26
+    ? `${cleaned.slice(0, 24)}…`
+    : cleaned || 'Controle Conectado';
 }
 
 const DEADZONE = 0.35;
 const INITIAL_REPEAT_DELAY = 340;
 const REPEAT_INTERVAL = 135;
+const DPAD_INDICES = new Set([12, 13, 14, 15]);
 
 export function useGamepadNavigation(actions: GamepadActions) {
   const [connectedGamepad, setConnectedGamepad] = useState<string | null>(null);
@@ -117,58 +132,132 @@ export function useGamepadNavigation(actions: GamepadActions) {
           const btnPressed = (idx: number) =>
             Boolean(pad.buttons[idx] && pad.buttons[idx].pressed);
 
-          const axX = pad.axes[0] ?? 0;
-          const axY = pad.axes[1] ?? 0;
+          // Protect against GameSir / 8BitDo firmware combos like Start+Select (8 + 9)
+          const startAndSelectCombo = btnPressed(8) && btnPressed(9);
 
-          const isLeft = btnPressed(14) || axX < -DEADZONE;
-          const isRight = btnPressed(15) || axX > DEADZONE;
-          const isUp = btnPressed(12) || axY < -DEADZONE;
-          const isDown = btnPressed(13) || axY > DEADZONE;
+          if (actionsRef.current.isCapturingButton) {
+            let capturedIdx: number | null = null;
+            let conflictCombo = false;
 
-          const handleDir = (
-            key: 'left' | 'right' | 'up' | 'down',
-            active: boolean,
-            cb?: () => void
-          ) => {
-            const state = dirStateRef.current[key];
-            if (active) {
-              if (!state.active) {
-                state.active = true;
-                state.nextRepeatAt = now + INITIAL_REPEAT_DELAY;
-                cb?.();
-              } else if (now >= state.nextRepeatAt) {
-                state.nextRepeatAt = now + REPEAT_INTERVAL;
-                cb?.();
+            for (let i = 0; i < pad.buttons.length; i++) {
+              const pressed = btnPressed(i);
+              const wasPressed = prevButtonsRef.current[i] ?? false;
+              prevButtonsRef.current[i] = pressed;
+
+              if (pressed && !wasPressed && !DPAD_INDICES.has(i)) {
+                if (startAndSelectCombo) {
+                  conflictCombo = true;
+                } else if (capturedIdx === null) {
+                  capturedIdx = i;
+                }
               }
-            } else {
-              state.active = false;
             }
-          };
 
-          handleDir('left', isLeft, actionsRef.current.onLeft);
-          handleDir('right', isRight, actionsRef.current.onRight);
-          handleDir('up', isUp, actionsRef.current.onUp);
-          handleDir('down', isDown, actionsRef.current.onDown);
-
-          const checkEdge = (idx: number, cb?: () => void) => {
-            const pressed = btnPressed(idx);
-            const wasPressed = prevButtonsRef.current[idx] ?? false;
-            if (pressed && !wasPressed) {
-              cb?.();
+            if (conflictCombo) {
+              actionsRef.current.onCaptureConflict?.(
+                'Combo Start+Select ignorado para não conflitar com atalhos de firmware (GameSir/8BitDo).'
+              );
+            } else if (capturedIdx !== null) {
+              actionsRef.current.onCaptureButton?.(capturedIdx);
             }
-            prevButtonsRef.current[idx] = pressed;
-          };
+          } else if (actionsRef.current.isScreensaverActive) {
+            let anyButtonEdge = false;
+            for (let i = 0; i < pad.buttons.length; i++) {
+              const pressed = btnPressed(i);
+              const wasPressed = prevButtonsRef.current[i] ?? false;
+              if (pressed && !wasPressed) {
+                anyButtonEdge = true;
+              }
+              prevButtonsRef.current[i] = pressed;
+            }
 
-          checkEdge(0, actionsRef.current.onConfirm);
-          checkEdge(1, actionsRef.current.onCancel);
-          checkEdge(2, actionsRef.current.onOptions);
-          checkEdge(3, actionsRef.current.onFavorite);
-          checkEdge(4, actionsRef.current.onPrevTab);
-          checkEdge(5, actionsRef.current.onNextTab);
-          checkEdge(7, actionsRef.current.onTranslator);
-          checkEdge(9, actionsRef.current.onSettings);
-          checkEdge(11, actionsRef.current.onSort);
-          checkEdge(16, actionsRef.current.onMenu);
+            if (anyButtonEdge && !startAndSelectCombo) {
+              actionsRef.current.onWakeScreensaver?.();
+            }
+          } else {
+            const axX = pad.axes[0] ?? 0;
+            const axY = pad.axes[1] ?? 0;
+            const axRX = pad.axes[2] ?? 0;
+            const axRY = pad.axes[3] ?? 0;
+
+            const isLeft = btnPressed(14) || axX < -DEADZONE;
+            const isRight = btnPressed(15) || axX > DEADZONE;
+            const isUp = btnPressed(12) || axY < -DEADZONE;
+            const isDown = btnPressed(13) || axY > DEADZONE;
+
+            const anyAxisMoved =
+              Math.abs(axX) > DEADZONE ||
+              Math.abs(axY) > DEADZONE ||
+              Math.abs(axRX) > DEADZONE ||
+              Math.abs(axRY) > DEADZONE;
+
+            const handleDir = (
+              key: 'left' | 'right' | 'up' | 'down',
+              active: boolean,
+              cb?: () => void
+            ) => {
+              const state = dirStateRef.current[key];
+              if (active) {
+                if (!state.active) {
+                  state.active = true;
+                  state.nextRepeatAt = now + INITIAL_REPEAT_DELAY;
+                  cb?.();
+                } else if (now >= state.nextRepeatAt) {
+                  state.nextRepeatAt = now + REPEAT_INTERVAL;
+                  cb?.();
+                }
+              } else {
+                state.active = false;
+              }
+            };
+
+            handleDir('left', isLeft, actionsRef.current.onLeft);
+            handleDir('right', isRight, actionsRef.current.onRight);
+            handleDir('up', isUp, actionsRef.current.onUp);
+            handleDir('down', isDown, actionsRef.current.onDown);
+
+            const mapping =
+              actionsRef.current.buttonMapping ?? DEFAULT_BUTTON_MAPPING;
+
+            const risingEdges = new Set<number>();
+            for (let i = 0; i < pad.buttons.length; i++) {
+              const pressed = btnPressed(i);
+              const wasPressed = prevButtonsRef.current[i] ?? false;
+              if (pressed && !wasPressed) {
+                risingEdges.add(i);
+              }
+              prevButtonsRef.current[i] = pressed;
+            }
+
+            if (risingEdges.size > 0 || anyAxisMoved) {
+              actionsRef.current.onGamepadActivity?.();
+            }
+
+            // Ignore Start+Select combo completely so firmware mode toggles don't trigger launcher actions
+            if (!startAndSelectCombo) {
+              if (risingEdges.has(mapping.confirm)) {
+                actionsRef.current.onConfirm?.();
+              } else if (risingEdges.has(mapping.cancel)) {
+                actionsRef.current.onCancel?.();
+              } else if (risingEdges.has(mapping.options)) {
+                actionsRef.current.onOptions?.();
+              } else if (risingEdges.has(mapping.favorite)) {
+                actionsRef.current.onFavorite?.();
+              } else if (risingEdges.has(mapping.prevTab)) {
+                actionsRef.current.onPrevTab?.();
+              } else if (risingEdges.has(mapping.nextTab)) {
+                actionsRef.current.onNextTab?.();
+              } else if (risingEdges.has(mapping.translator)) {
+                actionsRef.current.onTranslator?.();
+              } else if (risingEdges.has(9)) {
+                actionsRef.current.onSettings?.();
+              } else if (risingEdges.has(11)) {
+                actionsRef.current.onSort?.();
+              } else if (risingEdges.has(16)) {
+                actionsRef.current.onMenu?.();
+              }
+            }
+          }
         }
       }
 
@@ -186,6 +275,12 @@ export function useGamepadNavigation(actions: GamepadActions) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (actionsRef.current.isScreensaverActive) {
+        e.preventDefault();
+        actionsRef.current.onWakeScreensaver?.();
+        return;
+      }
+
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName?.toLowerCase();
       const isEditing =

@@ -256,7 +256,12 @@ export const KeyCap: React.FC<{ label: string; className?: string }> = ({
   className = '',
 }) => (
   <span
-    className={`inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-mono-tech font-semibold rounded bg-[#121218] text-[#F4F4F6] border border-[#27273A] leading-none ${className}`}
+    className={`inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-mono-tech font-semibold rounded border leading-none ${className}`}
+    style={{
+      backgroundColor: 'var(--bg-surface)',
+      color: 'var(--text-primary)',
+      borderColor: 'var(--border-subtle)',
+    }}
   >
     {label}
   </span>

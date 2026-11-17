@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Edit3, Heart, Play, Trash2, X } from 'lucide-react';
-import { Game } from '../types';
+import { Edit3, Filter, Heart, Play, Search, Trash2, X } from 'lucide-react';
+import { Game, LibraryPlatformFilter } from '../types';
 import { CancelButtonIcon, ConfirmButtonIcon } from './ControllerIcons';
 
 interface GameOptionsModalProps {
   game: Game;
   focusedIndex: number;
+  platformFilter?: LibraryPlatformFilter;
+  onCyclePlatformFilter?: () => void;
+  onSearchCoverOnline: () => void;
   onChangeFocus: (idx: number) => void;
   onPlay: () => void;
   onToggleFavorite: () => void;
@@ -17,6 +20,9 @@ interface GameOptionsModalProps {
 export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
   game,
   focusedIndex,
+  platformFilter,
+  onCyclePlatformFilter,
+  onSearchCoverOnline,
   onChangeFocus,
   onPlay,
   onToggleFavorite,
@@ -45,6 +51,24 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
       action: onToggleFavorite,
       danger: false,
     },
+    {
+      id: 'cover',
+      label: 'Buscar Capa Online',
+      icon: Search,
+      action: onSearchCoverOnline,
+      danger: false,
+    },
+    ...(onCyclePlatformFilter
+      ? [
+          {
+            id: 'filter',
+            label: `Filtro de Plataforma: ${platformFilter ?? 'Todos'}`,
+            icon: Filter,
+            action: onCyclePlatformFilter,
+            danger: false,
+          },
+        ]
+      : []),
     {
       id: 'edit',
       label: 'Editar Informações e Comando',
@@ -79,7 +103,7 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-md bg-[#121218] border border-[#27273A] rounded-2xl p-6 shadow-2xl">
+      <div className="theme-surface w-full max-w-md p-6">
         <div className="flex items-start justify-between gap-4 mb-5">
           <div className="min-w-0">
             <p
@@ -90,7 +114,7 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
             </p>
             <h2
               id="options-modal-title"
-              className="font-display text-xl font-bold text-[#F4F4F6] truncate"
+              className="font-display text-xl font-bold text-[var(--text-primary)] truncate"
             >
               {game.title}
             </h2>
@@ -99,7 +123,7 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Fechar"
-            className="p-1.5 rounded-lg text-[#94A3B8] hover:text-[#F4F4F6] hover:bg-white/5 cursor-pointer"
+            className="theme-control p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -115,10 +139,10 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
                 type="button"
                 onMouseEnter={() => onChangeFocus(idx)}
                 onClick={item.action}
-                className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+                className={`theme-control w-full flex items-center justify-between px-4 py-3.5 text-sm font-semibold transition-all cursor-pointer ${
                   item.danger
                     ? 'text-rose-400 hover:bg-rose-500/10'
-                    : 'text-[#F4F4F6] hover:bg-white/5'
+                    : 'text-[var(--text-primary)] hover:bg-white/5'
                 }`}
                 style={
                   isFocused
@@ -130,12 +154,12 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
                           ? '1px solid rgba(244, 63, 94, 0.6)'
                           : '1px solid var(--accent)',
                       }
-                    : { border: '1px solid #27273A' }
+                    : { border: '1px solid var(--border-subtle)' }
                 }
               >
-                <span className="flex items-center gap-3">
-                  <Icon className="w-4 h-4" />
-                  <span>{item.label}</span>
+                <span className="flex items-center gap-3 min-w-0">
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{item.label}</span>
                 </span>
                 {isFocused && (
                   <ConfirmButtonIcon className="w-4 h-4 shrink-0" />
@@ -145,12 +169,15 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
           })}
         </div>
 
-        <div className="mt-5 pt-4 border-t border-[#27273A] flex items-center justify-between text-xs text-[#94A3B8]">
+        <div
+          className="mt-5 pt-4 border-t flex items-center justify-between text-xs text-[var(--text-secondary)]"
+          style={{ borderColor: 'var(--border-subtle)' }}
+        >
           <span>Use D-Pad ↑/↓ para navegar</span>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center gap-1.5 hover:text-[#F4F4F6] cursor-pointer"
+            className="inline-flex items-center gap-1.5 hover:text-[var(--text-primary)] cursor-pointer"
           >
             <CancelButtonIcon className="w-4 h-4" />
             <span>Voltar</span>
