@@ -8,7 +8,6 @@ import {
   MoreHorizontal,
   Plus,
 } from 'lucide-react';
-import { FILTER_TABS } from '../data/defaultGames';
 import { FilterTab, Game } from '../types';
 import { CrossIcon, SquareIcon, TriangleIcon } from './PlayStationIcons';
 
@@ -68,18 +67,31 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
   onOpenOptions,
   onAddGame,
 }) => {
+  const trackRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const selectedGame = games[selectedIndex] ?? null;
 
-  useEffect(() => {
+  const centerActiveCard = (behavior: ScrollBehavior = 'smooth') => {
+    const track = trackRef.current;
     const el = cardRefs.current[selectedIndex];
-    if (el) {
-      el.scrollIntoView({
-        behavior: 'smooth',
-        inline: 'center',
-        block: 'nearest',
-      });
-    }
+    if (!track || !el) return;
+
+    const targetLeft =
+      el.offsetLeft + el.offsetWidth / 2 - track.clientWidth / 2;
+    track.scrollTo({
+      left: Math.max(0, targetLeft),
+      behavior,
+    });
+  };
+
+  useEffect(() => {
+    centerActiveCard('smooth');
+  }, [selectedIndex, games.length]);
+
+  useEffect(() => {
+    const handleResize = () => centerActiveCard('auto');
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [selectedIndex, games.length]);
 
   const handleStep = (delta: number) => {
@@ -89,33 +101,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
   };
 
   return (
-    <main className="relative z-10 flex-1 flex flex-col justify-between min-h-0 py-3 lg:py-6 overflow-hidden">
-      {/* Compact mobile filter bar (visible below md) */}
-      <div className="flex md:hidden items-center gap-1.5 px-4 pb-2 overflow-x-auto no-scrollbar shrink-0">
-        {FILTER_TABS.map((tab) => {
-          const isActive = activeTab === tab;
-          return (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => onSelectTab(tab)}
-              className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
-                isActive
-                  ? 'text-white bg-[#121218]'
-                  : 'text-[#94A3B8] bg-[#121218]/60'
-              }`}
-              style={
-                isActive
-                  ? { border: '1px solid var(--accent)' }
-                  : { border: '1px solid #27273A' }
-              }
-            >
-              {tab}
-            </button>
-          );
-        })}
-      </div>
-
+    <main className="relative z-10 flex-1 flex flex-col justify-center min-h-0 py-2 lg:py-4 overflow-hidden">
       {games.length === 0 ? (
         /* Empty Filter State */
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
@@ -155,9 +141,9 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
           </div>
         </div>
       ) : (
-        <>
+        <div className="flex-1 flex flex-col items-center justify-center min-h-0 w-full gap-3 lg:gap-5">
           {/* Carousel Track Container */}
-          <div className="relative flex-1 flex items-center min-h-0">
+          <div className="relative w-full flex items-center justify-center min-h-0">
             {/* Left / Right Subtle Mouse Arrow Controls */}
             {games.length > 1 && (
               <>
@@ -165,7 +151,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
                   type="button"
                   onClick={() => handleStep(-1)}
                   aria-label="Jogo anterior"
-                  className="hidden lg:flex absolute left-4 z-20 w-11 h-11 rounded-full bg-[#121218]/85 border border-[#27273A] items-center justify-center text-[#94A3B8] hover:text-[#F4F4F6] hover:border-white/30 backdrop-blur-md transition-all cursor-pointer"
+                  className="hidden lg:flex absolute left-5 z-20 w-11 h-11 rounded-full bg-[#121218]/85 border border-[#27273A] items-center justify-center text-[#94A3B8] hover:text-[#F4F4F6] hover:border-white/30 backdrop-blur-md transition-all cursor-pointer"
                 >
                   <ChevronLeft className="w-6 h-6" />
                 </button>
@@ -173,7 +159,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
                   type="button"
                   onClick={() => handleStep(1)}
                   aria-label="Próximo jogo"
-                  className="hidden lg:flex absolute right-4 z-20 w-11 h-11 rounded-full bg-[#121218]/85 border border-[#27273A] items-center justify-center text-[#94A3B8] hover:text-[#F4F4F6] hover:border-white/30 backdrop-blur-md transition-all cursor-pointer"
+                  className="hidden lg:flex absolute right-5 z-20 w-11 h-11 rounded-full bg-[#121218]/85 border border-[#27273A] items-center justify-center text-[#94A3B8] hover:text-[#F4F4F6] hover:border-white/30 backdrop-blur-md transition-all cursor-pointer"
                 >
                   <ChevronRight className="w-6 h-6" />
                 </button>
@@ -181,7 +167,11 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
             )}
 
             <div
-              className="w-full flex items-center gap-5 lg:gap-7 overflow-x-auto no-scrollbar py-6 px-[calc(50vw-95px)] sm:px-[calc(50vw-115px)] lg:px-[calc(50vw-130px)] scroll-smooth"
+              ref={trackRef}
+              className="relative w-full flex items-center gap-4 sm:gap-6 lg:gap-8 overflow-x-auto no-scrollbar py-5 scroll-smooth"
+              style={{
+                paddingInline: 'calc(50% - clamp(70px, 12vh, 140px))',
+              }}
               role="listbox"
               aria-label="Biblioteca de Jogos"
             >
@@ -212,7 +202,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
                         : 'scale-95 opacity-60 hover:opacity-90 hover:scale-100'
                     }`}
                     style={{
-                      width: 'clamp(168px, 16vw, 275px)',
+                      height: 'clamp(210px, 36vh, 420px)',
                       border: isSelected
                         ? '2.5px solid var(--accent)'
                         : '1px solid #27273A',
@@ -245,9 +235,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
                     {/* Subtle bottom title preview on unselected cards */}
                     <div
                       className={`absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 via-black/50 to-transparent text-left transition-opacity duration-200 ${
-                        isSelected
-                          ? 'opacity-0'
-                          : 'opacity-100'
+                        isSelected ? 'opacity-0' : 'opacity-100'
                       }`}
                     >
                       <p className="font-display text-xs lg:text-sm font-semibold text-[#F4F4F6] truncate">
@@ -260,54 +248,52 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
             </div>
           </div>
 
-          {/* Selected Game Stage (Title, Playtime, Primary JOGAR Button) */}
+          {/* Selected Game Stage — Centered & aligned directly below the active card */}
           {selectedGame && (
             <section
               aria-live="polite"
-              className="px-5 md:px-8 lg:px-14 pb-2 lg:pb-3 flex flex-col md:flex-row md:items-end justify-between gap-4 shrink-0"
+              className="w-full max-w-2xl mx-auto px-5 flex flex-col items-center text-center gap-2.5 shrink-0"
             >
-              <div className="min-w-0 max-w-3xl">
-                <div className="flex items-center gap-2.5 text-xs lg:text-sm text-[#94A3B8] mb-1">
-                  <span
-                    className="font-semibold"
-                    style={{ color: 'var(--accent)' }}
-                  >
-                    {selectedGame.platformLabel || selectedGame.platform}
-                  </span>
-                  {selectedGame.genre && (
-                    <>
-                      <span aria-hidden="true">·</span>
-                      <span>{selectedGame.genre}</span>
-                    </>
-                  )}
-                  <span aria-hidden="true">·</span>
-                  <span className="inline-flex items-center gap-1 font-mono-tech tabular-nums">
-                    <Clock className="w-3.5 h-3.5" />
-                    {selectedGame.hoursPlayed.toFixed(1)}h jogadas
-                  </span>
-                  {selectedGame.lastPlayed && (
-                    <>
-                      <span className="hidden sm:inline" aria-hidden="true">
-                        ·
-                      </span>
-                      <span className="hidden sm:inline">
-                        Última sessão: {selectedGame.lastPlayed}
-                      </span>
-                    </>
-                  )}
-                </div>
-
-                <h1 className="font-display font-extrabold text-2xl sm:text-3xl lg:text-4xl xl:text-5xl text-[#F4F4F6] tracking-tight truncate">
-                  {selectedGame.title}
-                </h1>
+              <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-xs lg:text-sm text-[#94A3B8]">
+                <span
+                  className="font-semibold"
+                  style={{ color: 'var(--accent)' }}
+                >
+                  {selectedGame.platformLabel || selectedGame.platform}
+                </span>
+                {selectedGame.genre && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>{selectedGame.genre}</span>
+                  </>
+                )}
+                <span aria-hidden="true">·</span>
+                <span className="inline-flex items-center gap-1 font-mono-tech tabular-nums">
+                  <Clock className="w-3.5 h-3.5" />
+                  {selectedGame.hoursPlayed.toFixed(1)}h jogadas
+                </span>
+                {selectedGame.lastPlayed && (
+                  <>
+                    <span className="hidden sm:inline" aria-hidden="true">
+                      ·
+                    </span>
+                    <span className="hidden sm:inline">
+                      Última sessão: {selectedGame.lastPlayed}
+                    </span>
+                  </>
+                )}
               </div>
 
-              {/* Action Controls */}
-              <div className="flex items-center gap-3 shrink-0">
+              <h1 className="font-display font-extrabold text-2xl sm:text-3xl lg:text-4xl text-[#F4F4F6] tracking-tight max-w-full truncate">
+                {selectedGame.title}
+              </h1>
+
+              {/* Action Controls centered under the active cover */}
+              <div className="flex items-center justify-center gap-3 mt-1">
                 <button
                   type="button"
                   onClick={() => onPlayGame(selectedGame)}
-                  className="flex items-center gap-3 px-7 lg:px-9 py-3 lg:py-3.5 rounded-xl font-display font-bold text-base lg:text-lg text-white tracking-wide transition-all duration-150 cursor-pointer hover:brightness-110 active:scale-95"
+                  className="flex items-center gap-3 px-8 lg:px-10 py-3 lg:py-3.5 rounded-xl font-display font-bold text-base lg:text-lg text-white tracking-wide transition-all duration-150 cursor-pointer hover:brightness-110 active:scale-95"
                   style={{
                     backgroundColor: 'var(--accent)',
                     boxShadow: 'var(--accent-glow-strong)',
@@ -352,7 +338,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
               </div>
             </section>
           )}
-        </>
+        </div>
       )}
     </main>
   );

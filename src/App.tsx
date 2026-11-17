@@ -442,6 +442,7 @@ export default function App() {
       <TopBar
         activeTab={activeTab}
         onSelectTab={handleSelectTab}
+        onStepTab={handleStepTab}
         connectedGamepad={connectedGamepad}
         onAddGame={() => {
           soundEngine.playMove();
