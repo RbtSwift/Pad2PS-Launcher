@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+:root {
+  --bg-deep: #0B0B0F;
+  --bg-surface: #121218;
+  --border-subtle: #27273A;
+  --text-primary: #F4F4F6;
+  --text-secondary: #94A3B8;
+  --accent: #FF2E93;
+  --accent-rgb: 255, 46, 147;
+  --accent-glow: 0 0 20px rgba(255, 46, 147, 0.45);
+  --accent-glow-strong: 0 0 34px rgba(255, 46, 147, 0.65);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: var(--bg-deep);
+    color: var(--text-primary);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+}
+
+.font-display {
+  font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+}
+
+.font-mono-tech {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes pulse-ring {
+  0%, 100% {
+    box-shadow: 0 0 18px rgba(var(--accent-rgb), 0.35), inset 0 0 12px rgba(var(--accent-rgb), 0.12);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(var(--accent-rgb), 0.65), inset 0 0 18px rgba(var(--accent-rgb), 0.22);
+  }
+}
+
+.accent-ring-active {
+  animation: pulse-ring 2.6s ease-in-out infinite;
+}
+
+@keyframes scanline-sweep {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100vh);
+  }
+}
+
+.animate-scanline {
+  animation: scanline-sweep 6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .accent-ring-active,
+  .animate-scanline {
+    animation: none;
+  }
+}

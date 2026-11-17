@@ -1,0 +1,6 @@
+{
+  "name": "Pad2PS Launcher",
+  "description": "Launcher de jogos em tela cheia estilo console inspirado no Steam Big Picture e PS5, com suporte nativo à Gamepad API, temas neon e identidade Pad2PS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
