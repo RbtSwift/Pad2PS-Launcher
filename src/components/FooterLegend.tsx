@@ -1,95 +1,128 @@
 import React from 'react';
 import {
-  CircleIcon,
-  CrossIcon,
+  CancelButtonIcon,
+  ConfirmButtonIcon,
+  FavoriteButtonIcon,
   KeyCap,
-  SquareIcon,
-  TriangleIcon,
-} from './PlayStationIcons';
+  OptionsButtonIcon,
+} from './ControllerIcons';
 
 interface FooterLegendProps {
   hasSelectedGame: boolean;
   isModalOpen: boolean;
+  isDockOpen: boolean;
+  onToggleDock: () => void;
   onPlay?: () => void;
   onToggleFavorite?: () => void;
   onOpenOptions?: () => void;
-  onOpenSettings?: () => void;
-  onNextTab?: () => void;
+  onOpenTranslator?: () => void;
+  onBack?: () => void;
 }
 
 export const FooterLegend: React.FC<FooterLegendProps> = ({
   hasSelectedGame,
   isModalOpen,
+  isDockOpen,
+  onToggleDock,
   onPlay,
   onToggleFavorite,
   onOpenOptions,
-  onOpenSettings,
-  onNextTab,
+  onOpenTranslator,
+  onBack,
 }) => {
   return (
-    <footer className="relative z-20 flex items-center justify-between gap-4 px-5 md:px-8 lg:px-12 py-3 border-t border-[#27273A]/70 bg-[#0B0B0F]/80 backdrop-blur-md text-xs text-[#94A3B8] shrink-0">
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
-        <div className="flex items-center gap-2 whitespace-nowrap">
-          <KeyCap label="D-Pad / Analógico" />
-          <span>Navegar</span>
-        </div>
-
-        <button
-          type="button"
-          onClick={onNextTab}
-          className="flex items-center gap-2 whitespace-nowrap hover:text-[#F4F4F6] transition-colors cursor-pointer"
+    <footer
+      className="relative z-20 flex items-center justify-between gap-4 px-6 sm:px-10 lg:px-14 py-3 border-t backdrop-blur-md text-sm font-semibold tracking-wide uppercase text-[var(--text-secondary)] shrink-0"
+      style={{
+        borderColor: 'var(--border-subtle)',
+        backgroundColor: 'color-mix(in srgb, var(--bg-deep) 86%, transparent)',
+      }}
+    >
+      {/* Canto Esquerdo: Botão clicável [PAD2PS] MENU para o Dock Central */}
+      <button
+        type="button"
+        onClick={onToggleDock}
+        title="Abrir Dock Central Pad2PS (Botão Home / Tab / Esc)"
+        className="theme-control inline-flex items-center gap-2.5 px-4 py-2 border text-sm font-display font-bold tracking-wider text-[var(--text-primary)] hover:brightness-110 transition-all cursor-pointer shrink-0"
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          borderColor: isDockOpen ? 'var(--accent)' : 'var(--border-subtle)',
+          boxShadow: isDockOpen ? 'var(--accent-glow)' : undefined,
+        }}
+      >
+        <span
+          className="inline-flex items-center justify-center w-6 h-6 rounded-md text-xs font-extrabold text-white"
+          style={{
+            backgroundColor: 'var(--accent)',
+            boxShadow: '0 0 10px rgba(var(--accent-rgb), 0.5)',
+          }}
         >
-          <KeyCap label="L1 / R1" />
-          <span>Trocar Aba</span>
-        </button>
+          2
+        </span>
+        <span>PAD2PS</span>
+        <span className="text-[var(--text-secondary)] font-semibold">MENU</span>
+      </button>
 
-        {hasSelectedGame && !isModalOpen && (
+      {/* Canto Direito: Ícones grandes e claros dos atalhos do controle ativo */}
+      <div className="flex flex-wrap items-center justify-end gap-4 sm:gap-6">
+        {hasSelectedGame && !isModalOpen && !isDockOpen && (
           <>
             <button
               type="button"
-              onClick={onPlay}
-              className="flex items-center gap-1.5 whitespace-nowrap hover:text-[#F4F4F6] transition-colors cursor-pointer"
+              onClick={onOpenTranslator}
+              className="hidden lg:inline-flex items-center gap-2 hover:text-[var(--text-primary)] transition-colors cursor-pointer whitespace-nowrap"
             >
-              <CrossIcon className="w-4 h-4" />
-              <span className="text-[#F4F4F6] font-medium">Iniciar Jogo</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onToggleFavorite}
-              className="flex items-center gap-1.5 whitespace-nowrap hover:text-[#F4F4F6] transition-colors cursor-pointer"
-            >
-              <TriangleIcon className="w-4 h-4" />
-              <span>Favoritar</span>
+              <KeyCap label="R2 / T" />
+              <span>TRADUTOR</span>
             </button>
 
             <button
               type="button"
               onClick={onOpenOptions}
-              className="flex items-center gap-1.5 whitespace-nowrap hover:text-[#F4F4F6] transition-colors cursor-pointer"
+              className="hidden sm:inline-flex items-center gap-2 hover:text-[var(--text-primary)] transition-colors cursor-pointer whitespace-nowrap"
             >
-              <SquareIcon className="w-4 h-4" />
-              <span>Opções do Jogo</span>
+              <OptionsButtonIcon className="w-5 h-5 lg:w-6 lg:h-6" />
+              <span>OPÇÕES</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onToggleFavorite}
+              className="hidden md:inline-flex items-center gap-2 hover:text-[var(--text-primary)] transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <FavoriteButtonIcon className="w-5 h-5 lg:w-6 lg:h-6" />
+              <span>FAVORITAR</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onPlay}
+              className="inline-flex items-center gap-2 text-[var(--text-primary)] hover:brightness-125 transition-all cursor-pointer whitespace-nowrap"
+            >
+              <ConfirmButtonIcon className="w-5 h-5 lg:w-6 lg:h-6" />
+              <span>JOGAR / SELECIONAR</span>
             </button>
           </>
         )}
 
-        {isModalOpen && (
-          <div className="flex items-center gap-1.5 whitespace-nowrap">
-            <CircleIcon className="w-4 h-4" />
-            <span>Voltar / Fechar</span>
-          </div>
+        {(isModalOpen || isDockOpen) && (
+          <>
+            <div className="inline-flex items-center gap-2 text-[var(--text-primary)] whitespace-nowrap">
+              <ConfirmButtonIcon className="w-5 h-5 lg:w-6 lg:h-6" />
+              <span>SELECIONAR</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex items-center gap-2 hover:text-[var(--text-primary)] transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <CancelButtonIcon className="w-5 h-5 lg:w-6 lg:h-6" />
+              <span>VOLTAR</span>
+            </button>
+          </>
         )}
       </div>
-
-      <button
-        type="button"
-        onClick={onOpenSettings}
-        className="hidden sm:flex items-center gap-2 whitespace-nowrap hover:text-[#F4F4F6] transition-colors cursor-pointer shrink-0"
-      >
-        <KeyCap label="Options / Start" />
-        <span>Configurações</span>
-      </button>
     </footer>
   );
 };

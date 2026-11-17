@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Edit3, Heart, Play, Trash2, X } from 'lucide-react';
 import { Game } from '../types';
-import { CircleIcon, CrossIcon } from './PlayStationIcons';
+import { CancelButtonIcon, ConfirmButtonIcon } from './ControllerIcons';
 
 interface GameOptionsModalProps {
   game: Game;
@@ -137,7 +137,9 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
                   <Icon className="w-4 h-4" />
                   <span>{item.label}</span>
                 </span>
-                {isFocused && <CrossIcon className="w-4 h-4 shrink-0" />}
+                {isFocused && (
+                  <ConfirmButtonIcon className="w-4 h-4 shrink-0" />
+                )}
               </button>
             );
           })}
@@ -150,7 +152,7 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
             onClick={onClose}
             className="inline-flex items-center gap-1.5 hover:text-[#F4F4F6] cursor-pointer"
           >
-            <CircleIcon className="w-4 h-4" />
+            <CancelButtonIcon className="w-4 h-4" />
             <span>Voltar</span>
           </button>
         </div>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Check, Copy, ExternalLink, Terminal } from 'lucide-react';
 import { Game } from '../types';
-import { CircleIcon } from './PlayStationIcons';
+import { CancelButtonIcon } from './ControllerIcons';
 
 interface LaunchOverlayProps {
   game: Game;
@@ -157,7 +157,7 @@ export const LaunchOverlay: React.FC<LaunchOverlayProps> = ({
               onClick={onClose}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-[#0B0B0F] border border-[#27273A] text-[#F4F4F6] hover:border-white/30 transition-colors cursor-pointer"
             >
-              <CircleIcon className="w-4 h-4" />
+              <CancelButtonIcon className="w-4 h-4" />
               <span>Voltar ao Launcher</span>
             </button>
           </div>

@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Gamepad2, ImagePlus, Upload, X } from 'lucide-react';
 import { Game, Platform } from '../types';
-import { CircleIcon } from './PlayStationIcons';
+import { CancelButtonIcon } from './ControllerIcons';
 
 interface GameFormModalProps {
   initialGame?: Game | null;
@@ -15,8 +15,21 @@ const PLATFORMS: Platform[] = [
   'Heroic',
   'GOG',
   'Xbox',
+  'Lutris',
+  'itch.io',
   'Emulador',
   'Outro',
+];
+
+const CONSOLE_PRESETS = [
+  'PS2',
+  'PS1',
+  'PSP',
+  'Switch',
+  'N64',
+  'Xbox',
+  'Wii U',
+  'Dreamcast',
 ];
 
 export const GameFormModal: React.FC<GameFormModalProps> = ({
@@ -33,6 +46,9 @@ export const GameFormModal: React.FC<GameFormModalProps> = ({
   );
   const [platformLabel, setPlatformLabel] = useState(
     initialGame?.platformLabel ?? ''
+  );
+  const [consoleSystem, setConsoleSystem] = useState(
+    initialGame?.consoleSystem ?? ''
   );
   const [genre, setGenre] = useState(initialGame?.genre ?? '');
   const [hoursPlayed, setHoursPlayed] = useState(
@@ -77,11 +93,19 @@ export const GameFormModal: React.FC<GameFormModalProps> = ({
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '')}-${Date.now().toString(36)}`;
 
+    const trimmedConsole = consoleSystem.trim();
+    const resolvedLabel =
+      platformLabel.trim() ||
+      (platform === 'Emulador' && trimmedConsole
+        ? trimmedConsole
+        : platform);
+
     onSave({
       id,
       title: trimmedTitle,
       platform,
-      platformLabel: platformLabel.trim() || platform,
+      platformLabel: resolvedLabel,
+      consoleSystem: trimmedConsole || undefined,
       coverUrl: coverUrl.trim(),
       command: trimmedCmd,
       hoursPlayed: Number(parsedHours.toFixed(1)),
@@ -127,7 +151,10 @@ export const GameFormModal: React.FC<GameFormModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-6">
+        <form
+          onSubmit={handleSubmit}
+          className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-6"
+        >
           {/* Live 2:3 Cover Preview + Local Upload */}
           <div className="flex flex-col items-center gap-3">
             <div className="w-40 md:w-full aspect-[2/3] rounded-xl overflow-hidden bg-[#0B0B0F] border border-[#27273A] flex items-center justify-center">
@@ -232,6 +259,60 @@ export const GameFormModal: React.FC<GameFormModalProps> = ({
               </div>
             </div>
 
+            {/* Console / System Field for Emulators (and optional for any game) */}
+            <div>
+              <label
+                htmlFor="game-console-system"
+                className="block text-xs font-medium text-[#94A3B8] mb-1.5"
+              >
+                Sistema / Console (Opcional — usado nos sub-filtros de Emuladores)
+              </label>
+              <input
+                id="game-console-system"
+                type="text"
+                list="console-system-presets"
+                value={consoleSystem}
+                onChange={(e) => setConsoleSystem(e.target.value)}
+                placeholder="Ex: PS2, PS1, PSP, Switch, N64, Xbox, Wii U, Dreamcast"
+                className="w-full px-3.5 py-2 rounded-xl bg-[#0B0B0F] border border-[#27273A] text-sm text-[#F4F4F6] placeholder-[#94A3B8]/50 focus:outline-none focus:border-[var(--accent)]"
+              />
+              <datalist id="console-system-presets">
+                {CONSOLE_PRESETS.map((sys) => (
+                  <option key={sys} value={sys} />
+                ))}
+              </datalist>
+              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                {CONSOLE_PRESETS.map((sys) => {
+                  const selected =
+                    consoleSystem.trim().toLowerCase() === sys.toLowerCase();
+                  return (
+                    <button
+                      key={sys}
+                      type="button"
+                      onClick={() =>
+                        setConsoleSystem(selected ? '' : sys)
+                      }
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                        selected
+                          ? 'text-white'
+                          : 'bg-[#0B0B0F] text-[#94A3B8] hover:text-[#F4F4F6]'
+                      }`}
+                      style={
+                        selected
+                          ? {
+                              backgroundColor: 'rgba(var(--accent-rgb), 0.25)',
+                              border: '1px solid var(--accent)',
+                            }
+                          : { border: '1px solid #27273A' }
+                      }
+                    >
+                      {sys}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
                 <label
@@ -322,7 +403,7 @@ export const GameFormModal: React.FC<GameFormModalProps> = ({
                 onClick={onClose}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0B0B0F] border border-[#27273A] text-sm font-medium text-[#F4F4F6] hover:border-white/30 transition-colors cursor-pointer"
               >
-                <CircleIcon className="w-4 h-4" />
+                <CancelButtonIcon className="w-4 h-4" />
                 <span>Cancelar</span>
               </button>
               <button
@@ -334,7 +415,9 @@ export const GameFormModal: React.FC<GameFormModalProps> = ({
                 }}
               >
                 <Gamepad2 className="w-4 h-4" />
-                <span>{isEditing ? 'Salvar Alterações' : 'Adicionar à Biblioteca'}</span>
+                <span>
+                  {isEditing ? 'Salvar Alterações' : 'Adicionar à Biblioteca'}
+                </span>
               </button>
             </div>
           </div>

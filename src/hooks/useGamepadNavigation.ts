@@ -1,17 +1,54 @@
 import { useEffect, useRef, useState } from 'react';
+import { ControllerLayout, ResolvedControllerLayout } from '../types';
 
 export interface GamepadActions {
   onLeft?: () => void;
   onRight?: () => void;
   onUp?: () => void;
   onDown?: () => void;
-  onConfirm?: () => void; // Cross / A (0) or Enter
-  onCancel?: () => void; // Circle / B (1) or Esc
-  onOptions?: () => void; // Square / X (2)
-  onFavorite?: () => void; // Triangle / Y (3)
-  onPrevTab?: () => void; // L1 (4)
-  onNextTab?: () => void; // R1 (5)
-  onSettings?: () => void; // Start / Options (9)
+  onConfirm?: () => void; // Cross / A / B(Nintendo) (0) or Enter
+  onCancel?: () => void; // Circle / B / A(Nintendo) (1) or Esc
+  onOptions?: () => void; // Square / X / Y(Nintendo) (2)
+  onFavorite?: () => void; // Triangle / Y / X(Nintendo) (3)
+  onPrevTab?: () => void; // L1 / LB / L (4)
+  onNextTab?: () => void; // R1 / RB / R (5)
+  onSettings?: () => void; // Start / Options / Menu / + (9)
+  onSort?: () => void; // R3 (11) or S key
+  onMenu?: () => void; // Guide / Home (16) or Tab key
+  onSearch?: () => void; // '/' key
+  onTranslator?: () => void; // R2 / RT / ZR (7) or T key
+}
+
+export function detectGamepadLayout(rawId: string | null): ResolvedControllerLayout {
+  if (!rawId) return 'xbox';
+  const lower = rawId.toLowerCase();
+  if (
+    lower.includes('dualsense') ||
+    lower.includes('dualshock') ||
+    lower.includes('playstation') ||
+    lower.includes('054c')
+  ) {
+    return 'playstation';
+  }
+  if (
+    lower.includes('nintendo') ||
+    lower.includes('switch') ||
+    lower.includes('joy-con') ||
+    lower.includes('pro controller')
+  ) {
+    return 'nintendo';
+  }
+  return 'xbox';
+}
+
+export function resolveControllerLayout(
+  preference: ControllerLayout,
+  rawGamepadId: string | null
+): ResolvedControllerLayout {
+  if (preference === 'auto') {
+    return detectGamepadLayout(rawGamepadId);
+  }
+  return preference;
 }
 
 function cleanGamepadName(rawId: string): string {
@@ -22,8 +59,11 @@ function cleanGamepadName(rawId: string): string {
     .trim();
   if (/dualsense|054c.*0ce6/i.test(rawId)) return 'DualSense Wireless';
   if (/dualshock|054c/i.test(rawId)) return 'DualShock 4';
+  if (/nintendo|switch|joy-con|pro controller/i.test(rawId))
+    return 'Nintendo Controller';
   if (/xbox/i.test(rawId)) return 'Controle Xbox';
   if (/8bitdo/i.test(rawId)) return '8BitDo Controller';
+  if (/gamesir/i.test(rawId)) return 'GameSir Controller';
   return cleaned.length > 26 ? `${cleaned.slice(0, 24)}…` : cleaned || 'Controle Conectado';
 }
 
@@ -33,10 +73,10 @@ const REPEAT_INTERVAL = 135;
 
 export function useGamepadNavigation(actions: GamepadActions) {
   const [connectedGamepad, setConnectedGamepad] = useState<string | null>(null);
+  const [rawGamepadId, setRawGamepadId] = useState<string | null>(null);
   const actionsRef = useRef<GamepadActions>(actions);
   actionsRef.current = actions;
 
-  // Track previous button states & directional repeat timers
   const prevButtonsRef = useRef<boolean[]>([]);
   const dirStateRef = useRef<{
     left: { active: boolean; nextRepeatAt: number };
@@ -56,6 +96,7 @@ export function useGamepadNavigation(actions: GamepadActions) {
       const pads = navigator.getGamepads();
       const firstPad = Array.from(pads).find((p) => p && p.connected);
       setConnectedGamepad(firstPad ? cleanGamepadName(firstPad.id) : null);
+      setRawGamepadId(firstPad ? firstPad.id : null);
     };
 
     const handleConnect = () => syncGamepadLabel();
@@ -76,7 +117,6 @@ export function useGamepadNavigation(actions: GamepadActions) {
           const btnPressed = (idx: number) =>
             Boolean(pad.buttons[idx] && pad.buttons[idx].pressed);
 
-          // Axes with 0.35 deadzone
           const axX = pad.axes[0] ?? 0;
           const axY = pad.axes[1] ?? 0;
 
@@ -110,7 +150,6 @@ export function useGamepadNavigation(actions: GamepadActions) {
           handleDir('up', isUp, actionsRef.current.onUp);
           handleDir('down', isDown, actionsRef.current.onDown);
 
-          // Edge-triggered action buttons
           const checkEdge = (idx: number, cb?: () => void) => {
             const pressed = btnPressed(idx);
             const wasPressed = prevButtonsRef.current[idx] ?? false;
@@ -120,13 +159,16 @@ export function useGamepadNavigation(actions: GamepadActions) {
             prevButtonsRef.current[idx] = pressed;
           };
 
-          checkEdge(0, actionsRef.current.onConfirm); // Cross / A
-          checkEdge(1, actionsRef.current.onCancel); // Circle / B
-          checkEdge(2, actionsRef.current.onOptions); // Square / X
-          checkEdge(3, actionsRef.current.onFavorite); // Triangle / Y
-          checkEdge(4, actionsRef.current.onPrevTab); // L1
-          checkEdge(5, actionsRef.current.onNextTab); // R1
-          checkEdge(9, actionsRef.current.onSettings); // Start / Options
+          checkEdge(0, actionsRef.current.onConfirm);
+          checkEdge(1, actionsRef.current.onCancel);
+          checkEdge(2, actionsRef.current.onOptions);
+          checkEdge(3, actionsRef.current.onFavorite);
+          checkEdge(4, actionsRef.current.onPrevTab);
+          checkEdge(5, actionsRef.current.onNextTab);
+          checkEdge(7, actionsRef.current.onTranslator);
+          checkEdge(9, actionsRef.current.onSettings);
+          checkEdge(11, actionsRef.current.onSort);
+          checkEdge(16, actionsRef.current.onMenu);
         }
       }
 
@@ -142,7 +184,6 @@ export function useGamepadNavigation(actions: GamepadActions) {
     };
   }, []);
 
-  // Keyboard navigation mirroring controller buttons
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -164,6 +205,10 @@ export function useGamepadNavigation(actions: GamepadActions) {
       }
 
       switch (e.key) {
+        case 'Tab':
+          e.preventDefault();
+          actionsRef.current.onMenu?.();
+          break;
         case 'ArrowLeft':
           e.preventDefault();
           actionsRef.current.onLeft?.();
@@ -181,8 +226,6 @@ export function useGamepadNavigation(actions: GamepadActions) {
           actionsRef.current.onDown?.();
           break;
         case 'Enter':
-          // Allow native button activation if a specific button/link is focused inside a modal,
-          // otherwise trigger confirm
           if (tag !== 'button' && tag !== 'a') {
             e.preventDefault();
             actionsRef.current.onConfirm?.();
@@ -212,6 +255,20 @@ export function useGamepadNavigation(actions: GamepadActions) {
           e.preventDefault();
           actionsRef.current.onOptions?.();
           break;
+        case 's':
+        case 'S':
+          e.preventDefault();
+          actionsRef.current.onSort?.();
+          break;
+        case 't':
+        case 'T':
+          e.preventDefault();
+          actionsRef.current.onTranslator?.();
+          break;
+        case '/':
+          e.preventDefault();
+          actionsRef.current.onSearch?.();
+          break;
         case 'F1':
         case ',':
           e.preventDefault();
@@ -224,5 +281,5 @@ export function useGamepadNavigation(actions: GamepadActions) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  return { connectedGamepad };
+  return { connectedGamepad, rawGamepadId };
 }

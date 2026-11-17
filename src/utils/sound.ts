@@ -1,8 +1,11 @@
-// Pure Web Audio API console synthesizer — zero external audio dependencies
+import { ThemeId } from '../types';
+
+// Pure Web Audio API console synthesizer — adapts timbre per active theme, zero external audio files
 
 class ConsoleSoundEngine {
   private ctx: AudioContext | null = null;
   private enabled: boolean = true;
+  private theme: ThemeId = 'pad2ps-default';
 
   private getContext(): AudioContext | null {
     if (!this.enabled) return null;
@@ -30,139 +33,184 @@ class ConsoleSoundEngine {
     return this.enabled;
   }
 
-  /** Soft futuristic tick when moving carousel selection */
+  public setTheme(theme: ThemeId) {
+    this.theme = theme;
+  }
+
+  private playTone(
+    freqStart: number,
+    freqEnd: number,
+    duration: number,
+    type: OscillatorType,
+    volume: number,
+    delay = 0
+  ) {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const now = ctx.currentTime + delay;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = type;
+    osc.frequency.setValueAtTime(freqStart, now);
+    if (freqEnd !== freqStart) {
+      osc.frequency.exponentialRampToValueAtTime(
+        Math.max(20, freqEnd),
+        now + duration
+      );
+    }
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(volume, now + Math.min(0.012, duration * 0.25));
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + duration + 0.01);
+  }
+
+  /** Soft move tick tailored to active theme */
   public playMove() {
-    const ctx = this.getContext();
-    if (!ctx) return;
-
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(520, now);
-    osc.frequency.exponentialRampToValueAtTime(760, now + 0.045);
-
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(0.065, now + 0.008);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.start(now);
-    osc.stop(now + 0.065);
+    switch (this.theme) {
+      case 'pixel':
+        // 8-bit square chiptune bleep
+        this.playTone(440, 660, 0.045, 'square', 0.032);
+        break;
+      case 'cute':
+        // Marimba / waterdrop high chime
+        this.playTone(880, 1174.66, 0.065, 'sine', 0.055);
+        break;
+      case 'horror':
+        // Deep ominous sub thud
+        this.playTone(135, 82, 0.095, 'triangle', 0.075);
+        break;
+      case 'futuristic':
+        // Crisp HUD digital blip
+        this.playTone(1040, 1480, 0.04, 'triangle', 0.045);
+        break;
+      default:
+        this.playTone(520, 760, 0.055, 'sine', 0.06);
+        break;
+    }
   }
 
-  /** Smooth harmonic whoosh when switching L1/R1 tabs */
+  /** Tab / category switch sound */
   public playTab() {
-    const ctx = this.getContext();
-    if (!ctx) return;
-
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const osc2 = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(340, now);
-    osc.frequency.exponentialRampToValueAtTime(640, now + 0.09);
-
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(680, now);
-    osc2.frequency.exponentialRampToValueAtTime(960, now + 0.09);
-
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(0.06, now + 0.015);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
-
-    osc.connect(gain);
-    osc2.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.start(now);
-    osc2.start(now);
-    osc.stop(now + 0.12);
-    osc2.stop(now + 0.12);
+    switch (this.theme) {
+      case 'pixel':
+        this.playTone(330, 330, 0.04, 'square', 0.03, 0);
+        this.playTone(523.25, 523.25, 0.055, 'square', 0.03, 0.04);
+        break;
+      case 'cute':
+        this.playTone(783.99, 1046.5, 0.08, 'sine', 0.055, 0);
+        this.playTone(1318.5, 1567.98, 0.09, 'sine', 0.045, 0.04);
+        break;
+      case 'horror':
+        this.playTone(164.81, 110, 0.14, 'sawtooth', 0.028, 0);
+        this.playTone(98, 73.42, 0.16, 'triangle', 0.06, 0.02);
+        break;
+      case 'futuristic':
+        this.playTone(620, 1240, 0.08, 'sine', 0.045, 0);
+        this.playTone(1240, 1860, 0.07, 'triangle', 0.035, 0.03);
+        break;
+      default:
+        this.playTone(340, 640, 0.1, 'triangle', 0.055, 0);
+        this.playTone(680, 960, 0.1, 'sine', 0.045, 0);
+        break;
+    }
   }
 
-  /** Ascending neon chord on Confirm / Launch Game */
+  /** Confirm / Launch Game chord */
   public playConfirm() {
-    const ctx = this.getContext();
-    if (!ctx) return;
-
-    const now = ctx.currentTime;
-    const notes = [440, 554.37, 659.25, 880];
-
-    notes.forEach((freq, idx) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const start = now + idx * 0.035;
-
-      osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
-      osc.frequency.setValueAtTime(freq, start);
-      osc.frequency.exponentialRampToValueAtTime(freq * 1.015, start + 0.22);
-
-      gain.gain.setValueAtTime(0.001, start);
-      gain.gain.linearRampToValueAtTime(0.055, start + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.28);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start(start);
-      osc.stop(start + 0.3);
-    });
+    switch (this.theme) {
+      case 'pixel': {
+        const arp = [523.25, 659.25, 783.99, 1046.5];
+        arp.forEach((f, i) =>
+          this.playTone(f, f, 0.07, 'square', 0.03, i * 0.045)
+        );
+        break;
+      }
+      case 'cute': {
+        const drops = [659.25, 880, 1046.5, 1318.5];
+        drops.forEach((f, i) =>
+          this.playTone(f, f * 1.03, 0.14, 'sine', 0.05, i * 0.04)
+        );
+        break;
+      }
+      case 'horror': {
+        const dark = [146.83, 174.61, 220];
+        dark.forEach((f, i) =>
+          this.playTone(f, f * 0.96, 0.28, 'triangle', 0.06, i * 0.055)
+        );
+        break;
+      }
+      case 'futuristic': {
+        const sci = [587.33, 880, 1174.66, 1760];
+        sci.forEach((f, i) =>
+          this.playTone(f, f * 1.02, 0.16, i % 2 === 0 ? 'sine' : 'triangle', 0.045, i * 0.03)
+        );
+        break;
+      }
+      default: {
+        const notes = [440, 554.37, 659.25, 880];
+        notes.forEach((f, i) =>
+          this.playTone(
+            f,
+            f * 1.015,
+            0.24,
+            i % 2 === 0 ? 'sine' : 'triangle',
+            0.05,
+            i * 0.035
+          )
+        );
+        break;
+      }
+    }
   }
 
-  /** Soft descending tone for Back / Cancel */
+  /** Back / Cancel sound */
   public playCancel() {
-    const ctx = this.getContext();
-    if (!ctx) return;
-
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(480, now);
-    osc.frequency.exponentialRampToValueAtTime(240, now + 0.11);
-
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(0.06, now + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.start(now);
-    osc.stop(now + 0.14);
+    switch (this.theme) {
+      case 'pixel':
+        this.playTone(392, 196, 0.09, 'square', 0.03);
+        break;
+      case 'cute':
+        this.playTone(987.77, 659.25, 0.1, 'sine', 0.05);
+        break;
+      case 'horror':
+        this.playTone(110, 65.41, 0.18, 'triangle', 0.07);
+        break;
+      case 'futuristic':
+        this.playTone(880, 440, 0.09, 'triangle', 0.045);
+        break;
+      default:
+        this.playTone(480, 240, 0.12, 'sine', 0.055);
+        break;
+    }
   }
 
-  /** Subtle double chime when toggling favorite */
+  /** Favorite toggle chime */
   public playFavorite() {
-    const ctx = this.getContext();
-    if (!ctx) return;
-
-    const now = ctx.currentTime;
-    [587.33, 880].forEach((freq, idx) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const start = now + idx * 0.055;
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, start);
-
-      gain.gain.setValueAtTime(0.001, start);
-      gain.gain.linearRampToValueAtTime(0.05, start + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.14);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start(start);
-      osc.stop(start + 0.15);
-    });
+    switch (this.theme) {
+      case 'pixel':
+        this.playTone(659.25, 659.25, 0.05, 'square', 0.03, 0);
+        this.playTone(987.77, 987.77, 0.08, 'square', 0.03, 0.055);
+        break;
+      case 'cute':
+        this.playTone(1046.5, 1174.66, 0.1, 'sine', 0.05, 0);
+        this.playTone(1567.98, 1760, 0.12, 'sine', 0.05, 0.055);
+        break;
+      case 'horror':
+        this.playTone(196, 185, 0.14, 'triangle', 0.055, 0);
+        this.playTone(293.66, 277.18, 0.16, 'sine', 0.045, 0.06);
+        break;
+      default:
+        this.playTone(587.33, 587.33, 0.12, 'sine', 0.05, 0);
+        this.playTone(880, 880, 0.14, 'sine', 0.05, 0.055);
+        break;
+    }
   }
 }
 

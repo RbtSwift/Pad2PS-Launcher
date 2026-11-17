@@ -4,22 +4,32 @@ export type Platform =
   | 'Heroic'
   | 'GOG'
   | 'Xbox'
+  | 'Lutris'
+  | 'itch.io'
   | 'Emulador'
   | 'Outro';
 
 export type FilterTab =
+  | 'Início'
   | 'Todos'
   | 'Steam'
   | 'Heroic / Epic'
+  | 'Heroic / Epic & GOG'
   | 'GOG'
   | 'Emuladores'
   | 'Favoritos';
 
+export type SortMode = 'recent' | 'az' | 'most-played';
+
+export type ControllerLayout = 'playstation' | 'xbox' | 'nintendo' | 'auto';
+export type ResolvedControllerLayout = 'playstation' | 'xbox' | 'nintendo';
+
 export type ThemeId =
-  | 'neon-pink'
-  | 'ps2-blue'
-  | 'cyber-cyan'
-  | 'matrix-green';
+  | 'pad2ps-default'
+  | 'futuristic'
+  | 'horror'
+  | 'cute'
+  | 'pixel';
 
 export interface ThemeConfig {
   id: ThemeId;
@@ -27,6 +37,9 @@ export interface ThemeConfig {
   subtitle: string;
   hex: string;
   rgb: string;
+  secondaryHex?: string;
+  bgDeep: string;
+  bgSurface: string;
 }
 
 export interface Game {
@@ -34,6 +47,7 @@ export interface Game {
   title: string;
   platform: Platform;
   platformLabel?: string;
+  consoleSystem?: string;
   coverUrl: string;
   command: string;
   hoursPlayed: number;
@@ -45,10 +59,15 @@ export interface Game {
 export interface LauncherSettings {
   theme: ThemeId;
   soundEnabled: boolean;
+  controllerLayout: ControllerLayout;
+  translatorUrl: string;
 }
 
 export type ActiveModal =
   | 'none'
+  | 'welcome'
+  | 'search'
+  | 'translator'
   | 'add-game'
   | 'edit-game'
   | 'game-options'

@@ -1,6 +1,6 @@
 import React from 'react';
 import { MonitorOff, Power, RefreshCw, X } from 'lucide-react';
-import { CircleIcon, CrossIcon } from './PlayStationIcons';
+import { CancelButtonIcon, ConfirmButtonIcon } from './ControllerIcons';
 
 interface PowerModalProps {
   focusedIndex: number;
@@ -99,7 +99,9 @@ export const PowerModal: React.FC<PowerModalProps> = ({
                     </p>
                   </div>
                 </div>
-                {isFocused && <CrossIcon className="w-4 h-4 shrink-0" />}
+                {isFocused && (
+                  <ConfirmButtonIcon className="w-4 h-4 shrink-0" />
+                )}
               </button>
             );
           })}
@@ -111,7 +113,7 @@ export const PowerModal: React.FC<PowerModalProps> = ({
             onClick={onClose}
             className="inline-flex items-center gap-1.5 text-xs text-[#94A3B8] hover:text-[#F4F4F6] cursor-pointer"
           >
-            <CircleIcon className="w-4 h-4" />
+            <CancelButtonIcon className="w-4 h-4" />
             <span>Voltar</span>
           </button>
         </div>

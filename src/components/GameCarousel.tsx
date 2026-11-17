@@ -1,29 +1,71 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ArrowUpDown,
   ChevronLeft,
   ChevronRight,
-  Clock,
+  Cpu,
+  ExternalLink,
   Gamepad2,
   Heart,
+  Layers,
+  Library,
   MoreHorizontal,
   Plus,
+  Sparkles,
 } from 'lucide-react';
-import { FilterTab, Game } from '../types';
-import { CrossIcon, SquareIcon, TriangleIcon } from './PlayStationIcons';
+import { FilterTab, Game, SortMode } from '../types';
+import {
+  ConfirmButtonIcon,
+  FavoriteButtonIcon,
+  KeyCap,
+  OptionsButtonIcon,
+} from './ControllerIcons';
+
+export interface CollectionShortcut {
+  id: string;
+  label: string;
+  tab: FilterTab;
+  count: number;
+  icon: 'all' | 'steam' | 'epic' | 'gog' | 'emu' | 'fav';
+}
+
+interface ConsoleFilterItem {
+  name: string;
+  count: number;
+}
 
 interface GameCarouselProps {
   games: Game[];
   selectedIndex: number;
   activeTab: FilterTab;
+  sortMode: SortMode;
+  focusRow: 'games' | 'collections';
+  collectionFocusIndex: number;
+  collections: CollectionShortcut[];
+  consoleSystems: ConsoleFilterItem[];
+  activeConsole: string;
+  onSelectConsole: (consoleName: string) => void;
+  onCycleSort: () => void;
   onSelectTab: (tab: FilterTab) => void;
   onSelectIndex: (index: number) => void;
+  onFocusCollections: (idx: number) => void;
   onPlayGame: (game: Game) => void;
   onToggleFavorite: (game: Game) => void;
   onOpenOptions: (game: Game) => void;
+  onOpenTranslator: () => void;
   onAddGame: () => void;
 }
 
-const CoverImage: React.FC<{ game: Game }> = ({ game }) => {
+const SORT_LABELS: Record<SortMode, string> = {
+  recent: 'Recentes',
+  az: 'A-Z',
+  'most-played': 'Mais Jogados',
+};
+
+const CoverImage: React.FC<{ game: Game; compact?: boolean }> = ({
+  game,
+  compact = false,
+}) => {
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -32,12 +74,22 @@ const CoverImage: React.FC<{ game: Game }> = ({ game }) => {
 
   if (failed || !game.coverUrl) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center bg-gradient-to-br from-[#1C1C28] via-[#121218] to-[#0B0B0F]">
+      <div
+        className="w-full h-full flex flex-col items-center justify-center p-4 text-center"
+        style={{
+          background:
+            'linear-gradient(145deg, var(--bg-surface) 0%, var(--bg-deep) 100%)',
+        }}
+      >
         <Gamepad2
-          className="w-12 h-12 mb-3 opacity-80"
+          className={compact ? 'w-8 h-8 mb-2 opacity-80' : 'w-14 h-14 mb-3 opacity-80'}
           style={{ color: 'var(--accent)' }}
         />
-        <span className="font-display font-bold text-sm text-[#F4F4F6] line-clamp-3">
+        <span
+          className={`font-display font-bold text-[var(--text-primary)] line-clamp-3 ${
+            compact ? 'text-xs' : 'text-base'
+          }`}
+        >
           {game.title}
         </span>
       </div>
@@ -56,43 +108,87 @@ const CoverImage: React.FC<{ game: Game }> = ({ game }) => {
   );
 };
 
+function renderCollectionIcon(kind: CollectionShortcut['icon'], active: boolean) {
+  const cls = `w-4 h-4 shrink-0 ${active ? 'text-white' : ''}`;
+  switch (kind) {
+    case 'steam':
+      return <Gamepad2 className={cls} />;
+    case 'epic':
+      return <Layers className={cls} />;
+    case 'gog':
+      return <Sparkles className={cls} />;
+    case 'emu':
+      return <Cpu className={cls} />;
+    case 'fav':
+      return <Heart className={cls} />;
+    default:
+      return <Library className={cls} />;
+  }
+}
+
+function isPlayStationOrEmuGame(game: Game | null): boolean {
+  if (!game) return false;
+  if (game.platform === 'Emulador') return true;
+  const hay = `${game.title} ${game.platformLabel ?? ''} ${game.consoleSystem ?? ''}`;
+  return /ps1|ps2|psp|playstation|pcsx/i.test(hay);
+}
+
 export const GameCarousel: React.FC<GameCarouselProps> = ({
   games,
   selectedIndex,
   activeTab,
+  sortMode,
+  focusRow,
+  collectionFocusIndex,
+  collections,
+  consoleSystems,
+  activeConsole,
+  onSelectConsole,
+  onCycleSort,
   onSelectTab,
   onSelectIndex,
+  onFocusCollections,
   onPlayGame,
   onToggleFavorite,
   onOpenOptions,
+  onOpenTranslator,
   onAddGame,
 }) => {
-  const trackRef = useRef<HTMLDivElement | null>(null);
-  const cardRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const thumbTrackRef = useRef<HTMLDivElement | null>(null);
+  const thumbRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const collectionRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const selectedGame = games[selectedIndex] ?? null;
+  const highlightTranslator = isPlayStationOrEmuGame(selectedGame);
 
-  const centerActiveCard = (behavior: ScrollBehavior = 'smooth') => {
-    const track = trackRef.current;
-    const el = cardRefs.current[selectedIndex];
-    if (!track || !el) return;
-
-    const targetLeft =
-      el.offsetLeft + el.offsetWidth / 2 - track.clientWidth / 2;
-    track.scrollTo({
-      left: Math.max(0, targetLeft),
+  const scrollActiveThumbnailIntoView = (behavior: ScrollBehavior = 'smooth') => {
+    const el = thumbRefs.current[selectedIndex];
+    if (!el) return;
+    el.scrollIntoView({
       behavior,
+      inline: 'center',
+      block: 'nearest',
     });
   };
 
   useEffect(() => {
-    centerActiveCard('smooth');
-  }, [selectedIndex, games.length]);
+    scrollActiveThumbnailIntoView('smooth');
+  }, [selectedIndex, games.length, sortMode]);
 
   useEffect(() => {
-    const handleResize = () => centerActiveCard('auto');
+    const handleResize = () => scrollActiveThumbnailIntoView('auto');
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [selectedIndex, games.length]);
+
+  useEffect(() => {
+    if (focusRow === 'collections') {
+      collectionRefs.current[collectionFocusIndex]?.scrollIntoView({
+        behavior: 'smooth',
+        inline: 'nearest',
+        block: 'nearest',
+      });
+    }
+  }, [focusRow, collectionFocusIndex]);
 
   const handleStep = (delta: number) => {
     if (games.length === 0) return;
@@ -100,145 +196,439 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
     onSelectIndex(next);
   };
 
+  const showConsoleSubFilters =
+    activeTab === 'Emuladores' && consoleSystems.length > 0;
+
   return (
-    <main className="relative z-10 flex-1 flex flex-col justify-center min-h-0 py-2 lg:py-4 overflow-hidden">
-      {games.length === 0 ? (
-        /* Empty Filter State */
-        <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-[#121218] border border-[#27273A] flex items-center justify-center mb-4">
-            <Gamepad2 className="w-8 h-8 text-[#94A3B8]" />
+    <main className="relative z-10 flex-1 flex flex-col justify-between min-h-0 pt-1 pb-2.5 overflow-hidden">
+      {/* Linha de contexto / sub-filtros de console + Ordenação rápida */}
+      <div className="flex items-center justify-between gap-4 px-6 sm:px-10 lg:px-14 shrink-0">
+        {showConsoleSubFilters ? (
+          <div
+            aria-label="Sub-filtros de console"
+            className="flex items-center gap-2 overflow-x-auto no-scrollbar min-w-0 py-0.5"
+          >
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] mr-1 shrink-0">
+              <Cpu className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+              <span>Sistema:</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => onSelectConsole('Todos')}
+              className={`theme-control px-3 py-1 text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                activeConsole === 'Todos'
+                  ? 'text-white'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+              style={
+                activeConsole === 'Todos'
+                  ? {
+                      border: '1px solid var(--accent)',
+                      backgroundColor: 'rgba(var(--accent-rgb), 0.2)',
+                    }
+                  : {
+                      border: '1px solid var(--border-subtle)',
+                      backgroundColor: 'var(--bg-surface)',
+                    }
+              }
+            >
+              Todos
+            </button>
+            {consoleSystems.map((sys) => {
+              const isSelected = activeConsole === sys.name;
+              return (
+                <button
+                  key={sys.name}
+                  type="button"
+                  onClick={() => onSelectConsole(sys.name)}
+                  className={`theme-control px-3 py-1 text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'text-white'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                  style={
+                    isSelected
+                      ? {
+                          border: '1px solid var(--accent)',
+                          backgroundColor: 'rgba(var(--accent-rgb), 0.2)',
+                        }
+                      : {
+                          border: '1px solid var(--border-subtle)',
+                          backgroundColor: 'var(--bg-surface)',
+                        }
+                  }
+                >
+                  <span>{sys.name}</span>
+                  <span className="text-[11px] font-mono-tech opacity-75">
+                    {sys.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-          <h2 className="font-display text-2xl font-bold text-[#F4F4F6] mb-2">
-            Nenhum jogo em &ldquo;{activeTab}&rdquo;
+        ) : (
+          <p className="text-xs sm:text-sm font-semibold tracking-[0.16em] uppercase text-[var(--text-secondary)] truncate">
+            {activeTab === 'Início'
+              ? 'Palco Pad2PS · Jogados Recentemente'
+              : `Palco Pad2PS · ${
+                  activeTab === 'Todos' ? 'Toda a Biblioteca' : activeTab
+                }`}
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={onCycleSort}
+          title="Alternar ordenação (R3 ou tecla S)"
+          className="theme-control inline-flex items-center gap-2 px-3.5 py-1.5 border backdrop-blur-md text-xs sm:text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer shrink-0"
+          style={{
+            backgroundColor: 'color-mix(in srgb, var(--bg-surface) 85%, transparent)',
+            borderColor: 'var(--border-subtle)',
+          }}
+        >
+          <ArrowUpDown
+            className="w-4 h-4"
+            style={{ color: 'var(--accent)' }}
+          />
+          <span>
+            Ordenar:{' '}
+            <strong className="font-semibold text-[var(--text-primary)]">
+              {SORT_LABELS[sortMode]}
+            </strong>
+          </span>
+          <KeyCap label="R3 / S" className="hidden sm:inline-flex" />
+        </button>
+      </div>
+
+      {/* Palco Principal Pad2PS: Painel Hero Flutuante + Faixa de Miniaturas */}
+      {games.length === 0 ? (
+        <div className="flex-1 flex flex-col items-start justify-center px-6 sm:px-10 lg:px-14">
+          <div
+            className="theme-control w-16 h-16 border flex items-center justify-center mb-4"
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              borderColor: 'var(--border-subtle)',
+            }}
+          >
+            <Gamepad2 className="w-8 h-8 text-[var(--text-secondary)]" />
+          </div>
+          <h2 className="font-display text-3xl font-bold text-[var(--text-primary)] mb-2">
+            Nenhum jogo encontrado em &ldquo;{activeTab}&rdquo;
           </h2>
-          <p className="text-sm text-[#94A3B8] max-w-md mb-6">
+          <p className="text-base text-[var(--text-secondary)] max-w-xl mb-6">
             {activeTab === 'Favoritos'
-              ? 'Marque qualquer jogo com △ (ou F) para adicioná-lo rapidamente aos seus favoritos.'
-              : 'Adicione um novo título nesta plataforma ou volte para visualizar toda a sua biblioteca.'}
+              ? 'Use o botão Favoritar (ou tecla F) em qualquer jogo para adicioná-lo aos seus favoritos.'
+              : 'Adicione um novo jogo para esta plataforma ou explore outra coleção abaixo.'}
           </p>
           <div className="flex items-center gap-3">
-            {activeTab !== 'Todos' && (
-              <button
-                type="button"
-                onClick={() => onSelectTab('Todos')}
-                className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-[#121218] border border-[#27273A] text-[#F4F4F6] hover:border-[#94A3B8] transition-colors cursor-pointer"
-              >
-                Ver Todos os Jogos
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => onSelectTab('Início')}
+              className="theme-control px-6 py-3 text-base font-semibold border text-[var(--text-primary)] hover:border-white/40 transition-colors cursor-pointer"
+              style={{
+                backgroundColor: 'var(--bg-surface)',
+                borderColor: 'var(--border-subtle)',
+              }}
+            >
+              Voltar ao Início
+            </button>
             <button
               type="button"
               onClick={onAddGame}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all cursor-pointer hover:brightness-110"
+              className="theme-control flex items-center gap-2 px-6 py-3 text-base font-semibold text-white transition-all cursor-pointer hover:brightness-110"
               style={{
                 backgroundColor: 'var(--accent)',
                 boxShadow: 'var(--accent-glow)',
               }}
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-5 h-5" />
               <span>Adicionar Jogo</span>
             </button>
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center min-h-0 w-full gap-3 lg:gap-5">
-          {/* Carousel Track Container */}
-          <div className="relative w-full flex items-center justify-center min-h-0">
-            {/* Left / Right Subtle Mouse Arrow Controls */}
+        <div className="flex-1 flex flex-col justify-center min-h-0 gap-3 px-6 sm:px-10 lg:px-14">
+          {/* 1. Painel Hero Flutuante Assinatura Pad2PS */}
+          {selectedGame && (
+            <section
+              aria-live="polite"
+              aria-label="Jogo em destaque"
+              className={`theme-surface relative w-full backdrop-blur-xl p-4 sm:p-5 lg:p-6 flex items-center gap-5 sm:gap-7 lg:gap-9 transition-all duration-300 ${
+                focusRow === 'games' ? 'accent-ring-active' : ''
+              }`}
+              style={{
+                backgroundColor:
+                  'color-mix(in srgb, var(--bg-surface) 82%, transparent)',
+                borderColor:
+                  focusRow === 'games'
+                    ? 'var(--accent)'
+                    : 'var(--border-subtle)',
+                boxShadow:
+                  focusRow === 'games'
+                    ? 'var(--panel-shadow), var(--accent-glow)'
+                    : 'var(--panel-shadow)',
+              }}
+            >
+              {/* Capa Vertical Grande à Esquerda */}
+              <button
+                type="button"
+                onClick={() => onPlayGame(selectedGame)}
+                title={`Iniciar ${selectedGame.title}`}
+                className="theme-control relative shrink-0 aspect-[2/3] overflow-hidden cursor-pointer group focus:outline-none transition-transform duration-200 hover:scale-[1.02]"
+                style={{
+                  height: 'clamp(165px, 26vh, 310px)',
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '2px solid var(--accent)',
+                  boxShadow: 'var(--accent-glow)',
+                }}
+              >
+                <CoverImage game={selectedGame} />
+                {selectedGame.favorite && (
+                  <span
+                    className="theme-control absolute top-2.5 right-2.5 w-7 h-7 flex items-center justify-center border border-white/20"
+                    style={{
+                      backgroundColor:
+                        'color-mix(in srgb, var(--bg-deep) 85%, transparent)',
+                    }}
+                    title="Favorito"
+                  >
+                    <Heart
+                      className="w-4 h-4 fill-current"
+                      style={{ color: 'var(--accent)' }}
+                    />
+                  </span>
+                )}
+              </button>
+
+              {/* Informações Gigantes + Ações à Direita */}
+              <div className="flex-1 min-w-0 flex flex-col justify-center gap-2 sm:gap-3">
+                {/* Meta line */}
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs sm:text-sm lg:text-base font-semibold tracking-wider uppercase text-[var(--text-secondary)]">
+                  <span
+                    className="theme-control px-2.5 py-0.5 text-xs font-bold border"
+                    style={{
+                      color: 'var(--accent)',
+                      backgroundColor: 'rgba(var(--accent-rgb), 0.14)',
+                      borderColor: 'rgba(var(--accent-rgb), 0.45)',
+                    }}
+                  >
+                    {selectedGame.platformLabel || selectedGame.platform}
+                  </span>
+
+                  {selectedGame.consoleSystem &&
+                    !(selectedGame.platformLabel || '')
+                      .toLowerCase()
+                      .includes(selectedGame.consoleSystem.toLowerCase()) && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span>{selectedGame.consoleSystem}</span>
+                      </>
+                    )}
+
+                  <span aria-hidden="true">·</span>
+                  <span className="font-mono-tech tabular-nums text-[var(--text-primary)]/90">
+                    {selectedGame.hoursPlayed.toFixed(1)} HORAS JOGADAS
+                  </span>
+
+                  {selectedGame.lastPlayed && (
+                    <>
+                      <span className="hidden md:inline" aria-hidden="true">
+                        ·
+                      </span>
+                      <span className="hidden md:inline">
+                        ÚLTIMA SESSÃO: {selectedGame.lastPlayed}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                {/* Título Gigante */}
+                <h1 className="font-display font-extrabold text-3xl sm:text-4xl lg:text-5xl text-[var(--text-primary)] tracking-tight leading-tight truncate">
+                  {selectedGame.title}
+                </h1>
+
+                {selectedGame.genre && (
+                  <p className="text-xs sm:text-sm font-medium text-[var(--text-secondary)] truncate hidden sm:block">
+                    {selectedGame.genre}
+                  </p>
+                )}
+
+                {/* Botões Grandes de Ação */}
+                <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => onPlayGame(selectedGame)}
+                    className="theme-control flex items-center gap-2.5 px-7 sm:px-9 py-3 sm:py-3.5 font-display font-extrabold text-base sm:text-lg lg:text-xl text-white tracking-wide transition-all duration-150 cursor-pointer hover:brightness-110 active:scale-95"
+                    style={{
+                      backgroundColor: 'var(--accent)',
+                      boxShadow: 'var(--accent-glow-strong)',
+                    }}
+                  >
+                    <ConfirmButtonIcon className="w-5 h-5 sm:w-6 sm:h-6" />
+                    <span>JOGAR</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onToggleFavorite(selectedGame)}
+                    title={
+                      selectedGame.favorite
+                        ? 'Remover dos Favoritos (Tecla F)'
+                        : 'Adicionar aos Favoritos (Tecla F)'
+                    }
+                    className="theme-control flex items-center gap-2 px-4 sm:px-5 py-3 sm:py-3.5 border text-sm sm:text-base font-semibold text-[var(--text-primary)] hover:border-white/40 transition-colors cursor-pointer"
+                    style={{
+                      backgroundColor: 'var(--bg-deep)',
+                      borderColor: selectedGame.favorite
+                        ? 'rgba(var(--accent-rgb), 0.55)'
+                        : 'var(--border-subtle)',
+                    }}
+                  >
+                    <FavoriteButtonIcon className="w-5 h-5" />
+                    <Heart
+                      className={`w-5 h-5 ${
+                        selectedGame.favorite ? 'fill-current' : ''
+                      }`}
+                      style={
+                        selectedGame.favorite
+                          ? { color: 'var(--accent)' }
+                          : undefined
+                      }
+                    />
+                    <span className="hidden xl:inline">Favoritar</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onOpenOptions(selectedGame)}
+                    title="Opções do Jogo (Tecla M)"
+                    className="theme-control flex items-center gap-2 px-4 sm:px-5 py-3 sm:py-3.5 border text-sm sm:text-base font-semibold text-[var(--text-primary)] hover:border-white/40 transition-colors cursor-pointer"
+                    style={{
+                      backgroundColor: 'var(--bg-deep)',
+                      borderColor: 'var(--border-subtle)',
+                    }}
+                  >
+                    <OptionsButtonIcon className="w-5 h-5" />
+                    <MoreHorizontal className="w-5 h-5 hidden sm:inline" />
+                    <span>Opções</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={onOpenTranslator}
+                    title="Tradutor Pad2PS Web (R2 ou Tecla T)"
+                    className="theme-control flex items-center gap-2 px-4 sm:px-5 py-3 sm:py-3.5 border text-sm sm:text-base font-semibold transition-all cursor-pointer hover:brightness-110"
+                    style={{
+                      backgroundColor: highlightTranslator
+                        ? 'rgba(var(--accent-rgb), 0.16)'
+                        : 'var(--bg-deep)',
+                      borderColor: highlightTranslator
+                        ? 'var(--accent)'
+                        : 'var(--border-subtle)',
+                      color: 'var(--text-primary)',
+                      boxShadow: highlightTranslator
+                        ? 'var(--accent-glow)'
+                        : undefined,
+                    }}
+                  >
+                    <Gamepad2
+                      className="w-5 h-5 shrink-0"
+                      style={{ color: 'var(--accent)' }}
+                    />
+                    <span>Tradutor Pad2PS</span>
+                    <ExternalLink className="w-4 h-4 opacity-80 hidden sm:inline" />
+                    <KeyCap label="R2 / T" className="hidden lg:inline-flex" />
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* 2. Faixa Horizontal de Miniaturas das Capas */}
+          <div className="relative w-full flex items-center min-h-0">
             {games.length > 1 && (
               <>
                 <button
                   type="button"
                   onClick={() => handleStep(-1)}
                   aria-label="Jogo anterior"
-                  className="hidden lg:flex absolute left-5 z-20 w-11 h-11 rounded-full bg-[#121218]/85 border border-[#27273A] items-center justify-center text-[#94A3B8] hover:text-[#F4F4F6] hover:border-white/30 backdrop-blur-md transition-all cursor-pointer"
+                  className="theme-control hidden lg:flex absolute -left-3 z-20 w-9 h-9 border items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-white/40 backdrop-blur-md transition-all cursor-pointer"
+                  style={{
+                    backgroundColor:
+                      'color-mix(in srgb, var(--bg-surface) 90%, transparent)',
+                    borderColor: 'var(--border-subtle)',
+                  }}
                 >
-                  <ChevronLeft className="w-6 h-6" />
+                  <ChevronLeft className="w-5 h-5" />
                 </button>
                 <button
                   type="button"
                   onClick={() => handleStep(1)}
                   aria-label="Próximo jogo"
-                  className="hidden lg:flex absolute right-5 z-20 w-11 h-11 rounded-full bg-[#121218]/85 border border-[#27273A] items-center justify-center text-[#94A3B8] hover:text-[#F4F4F6] hover:border-white/30 backdrop-blur-md transition-all cursor-pointer"
+                  className="theme-control hidden lg:flex absolute -right-3 z-20 w-9 h-9 border items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-white/40 backdrop-blur-md transition-all cursor-pointer"
+                  style={{
+                    backgroundColor:
+                      'color-mix(in srgb, var(--bg-surface) 90%, transparent)',
+                    borderColor: 'var(--border-subtle)',
+                  }}
                 >
-                  <ChevronRight className="w-6 h-6" />
+                  <ChevronRight className="w-5 h-5" />
                 </button>
               </>
             )}
 
             <div
-              ref={trackRef}
-              className="relative w-full flex items-center gap-4 sm:gap-6 lg:gap-8 overflow-x-auto no-scrollbar py-5 scroll-smooth"
-              style={{
-                paddingInline: 'calc(50% - clamp(70px, 12vh, 140px))',
-              }}
+              ref={thumbTrackRef}
+              className="w-full flex items-center gap-3.5 sm:gap-4 overflow-x-auto no-scrollbar py-1.5 px-1 scroll-smooth"
               role="listbox"
-              aria-label="Biblioteca de Jogos"
+              aria-label="Miniaturas da Biblioteca"
             >
               {games.map((game, idx) => {
-                const isSelected = idx === selectedIndex;
-                const badgeText = game.platformLabel || game.platform;
+                const isSelected =
+                  idx === selectedIndex && focusRow === 'games';
+                const isCurrentCard = idx === selectedIndex;
 
                 return (
                   <button
                     key={game.id}
                     ref={(el) => {
-                      cardRefs.current[idx] = el;
+                      thumbRefs.current[idx] = el;
                     }}
                     type="button"
                     role="option"
-                    aria-selected={isSelected}
+                    aria-selected={isCurrentCard}
                     onClick={() => {
-                      if (isSelected) {
+                      if (isCurrentCard && focusRow === 'games') {
                         onPlayGame(game);
                       } else {
                         onSelectIndex(idx);
                       }
                     }}
                     onDoubleClick={() => onPlayGame(game)}
-                    className={`group relative shrink-0 aspect-[2/3] rounded-2xl overflow-hidden bg-[#121218] transition-all duration-300 ease-out cursor-pointer focus:outline-none ${
+                    className={`theme-control group relative shrink-0 aspect-[2/3] overflow-hidden transition-all duration-200 ease-out cursor-pointer focus:outline-none ${
                       isSelected
-                        ? 'scale-105 z-10 opacity-100 accent-ring-active'
-                        : 'scale-95 opacity-60 hover:opacity-90 hover:scale-100'
+                        ? 'scale-[1.06] z-10 opacity-100'
+                        : isCurrentCard
+                        ? 'scale-[1.02] z-10 opacity-95'
+                        : 'opacity-60 hover:opacity-95 hover:scale-[1.02]'
                     }`}
                     style={{
-                      height: 'clamp(210px, 36vh, 420px)',
+                      height: 'clamp(102px, 15.5vh, 174px)',
+                      backgroundColor: 'var(--bg-surface)',
                       border: isSelected
                         ? '2.5px solid var(--accent)'
-                        : '1px solid #27273A',
+                        : isCurrentCard
+                        ? '2px solid rgba(var(--accent-rgb), 0.55)'
+                        : '1px solid var(--border-subtle)',
                       boxShadow: isSelected
-                        ? '0 24px 50px -12px rgba(0,0,0,0.85), var(--accent-glow-strong)'
-                        : '0 14px 30px -10px rgba(0,0,0,0.7)',
+                        ? 'var(--accent-glow)'
+                        : '0 10px 24px -10px rgba(0,0,0,0.7)',
                     }}
                   >
-                    <CoverImage game={game} />
+                    <CoverImage game={game} compact />
 
-                    {/* Top scrim & platform tag */}
-                    <div className="absolute inset-x-0 top-0 p-2.5 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/35 to-transparent">
-                      <span className="px-2 py-0.5 rounded-md text-[10px] lg:text-[11px] font-semibold tracking-wide bg-[#0B0B0F]/85 text-[#F4F4F6] border border-white/15 backdrop-blur-sm">
-                        {badgeText}
-                      </span>
-
-                      {game.favorite && (
-                        <span
-                          className="w-6 h-6 rounded-full bg-[#0B0B0F]/80 border border-white/15 flex items-center justify-center"
-                          title="Favorito"
-                        >
-                          <Heart
-                            className="w-3.5 h-3.5 fill-current"
-                            style={{ color: 'var(--accent)' }}
-                          />
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Subtle bottom title preview on unselected cards */}
-                    <div
-                      className={`absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 via-black/50 to-transparent text-left transition-opacity duration-200 ${
-                        isSelected ? 'opacity-0' : 'opacity-100'
-                      }`}
-                    >
-                      <p className="font-display text-xs lg:text-sm font-semibold text-[#F4F4F6] truncate">
+                    <div className="absolute inset-x-0 bottom-0 px-2 py-1.5 bg-gradient-to-t from-black/95 via-black/70 to-transparent text-left">
+                      <p className="font-display text-[11px] sm:text-xs font-bold text-white truncate">
                         {game.title}
                       </p>
                     </div>
@@ -247,99 +637,68 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
               })}
             </div>
           </div>
-
-          {/* Selected Game Stage — Centered & aligned directly below the active card */}
-          {selectedGame && (
-            <section
-              aria-live="polite"
-              className="w-full max-w-2xl mx-auto px-5 flex flex-col items-center text-center gap-2.5 shrink-0"
-            >
-              <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-xs lg:text-sm text-[#94A3B8]">
-                <span
-                  className="font-semibold"
-                  style={{ color: 'var(--accent)' }}
-                >
-                  {selectedGame.platformLabel || selectedGame.platform}
-                </span>
-                {selectedGame.genre && (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span>{selectedGame.genre}</span>
-                  </>
-                )}
-                <span aria-hidden="true">·</span>
-                <span className="inline-flex items-center gap-1 font-mono-tech tabular-nums">
-                  <Clock className="w-3.5 h-3.5" />
-                  {selectedGame.hoursPlayed.toFixed(1)}h jogadas
-                </span>
-                {selectedGame.lastPlayed && (
-                  <>
-                    <span className="hidden sm:inline" aria-hidden="true">
-                      ·
-                    </span>
-                    <span className="hidden sm:inline">
-                      Última sessão: {selectedGame.lastPlayed}
-                    </span>
-                  </>
-                )}
-              </div>
-
-              <h1 className="font-display font-extrabold text-2xl sm:text-3xl lg:text-4xl text-[#F4F4F6] tracking-tight max-w-full truncate">
-                {selectedGame.title}
-              </h1>
-
-              {/* Action Controls centered under the active cover */}
-              <div className="flex items-center justify-center gap-3 mt-1">
-                <button
-                  type="button"
-                  onClick={() => onPlayGame(selectedGame)}
-                  className="flex items-center gap-3 px-8 lg:px-10 py-3 lg:py-3.5 rounded-xl font-display font-bold text-base lg:text-lg text-white tracking-wide transition-all duration-150 cursor-pointer hover:brightness-110 active:scale-95"
-                  style={{
-                    backgroundColor: 'var(--accent)',
-                    boxShadow: 'var(--accent-glow-strong)',
-                  }}
-                >
-                  <CrossIcon className="w-5 h-5 lg:w-6 lg:h-6" />
-                  <span>JOGAR</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => onToggleFavorite(selectedGame)}
-                  title={
-                    selectedGame.favorite
-                      ? 'Remover dos Favoritos (△ / F)'
-                      : 'Adicionar aos Favoritos (△ / F)'
-                  }
-                  className="flex items-center gap-2 px-4 py-3 lg:py-3.5 rounded-xl bg-[#121218]/90 border border-[#27273A] text-sm font-medium text-[#F4F4F6] hover:border-white/30 transition-colors cursor-pointer"
-                >
-                  <TriangleIcon className="w-4 h-4" />
-                  <Heart
-                    className={`w-4 h-4 ${
-                      selectedGame.favorite ? 'fill-current' : ''
-                    }`}
-                    style={
-                      selectedGame.favorite
-                        ? { color: 'var(--accent)' }
-                        : undefined
-                    }
-                  />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => onOpenOptions(selectedGame)}
-                  title="Opções do Jogo (□ / M)"
-                  className="flex items-center gap-2 px-4 py-3 lg:py-3.5 rounded-xl bg-[#121218]/90 border border-[#27273A] text-sm font-medium text-[#F4F4F6] hover:border-white/30 transition-colors cursor-pointer"
-                >
-                  <SquareIcon className="w-4 h-4" />
-                  <MoreHorizontal className="w-4 h-4" />
-                </button>
-              </div>
-            </section>
-          )}
         </div>
       )}
+
+      {/* Segunda Fileira Inferior: Explorar por Plataforma (D-Pad ↓ / ↑) */}
+      <section
+        aria-label="Explorar por Plataforma"
+        className="px-6 sm:px-10 lg:px-14 pt-1 shrink-0"
+      >
+        <p className="text-[11px] sm:text-xs font-semibold tracking-[0.16em] uppercase text-[var(--text-secondary)] mb-1.5">
+          Explorar por Plataforma
+        </p>
+        <div className="flex items-center gap-2.5 sm:gap-3 overflow-x-auto no-scrollbar py-0.5">
+          {collections.map((col, idx) => {
+            const isTabActive = activeTab === col.tab;
+            const isFocused =
+              focusRow === 'collections' && collectionFocusIndex === idx;
+
+            return (
+              <button
+                key={col.id}
+                ref={(el) => {
+                  collectionRefs.current[idx] = el;
+                }}
+                type="button"
+                onMouseEnter={() => onFocusCollections(idx)}
+                onClick={() => onSelectTab(col.tab)}
+                className="theme-control flex items-center gap-2.5 px-4 sm:px-5 py-2 whitespace-nowrap shrink-0 transition-all duration-150 cursor-pointer"
+                style={{
+                  backgroundColor: isFocused
+                    ? 'rgba(var(--accent-rgb), 0.22)'
+                    : isTabActive
+                    ? 'rgba(var(--accent-rgb), 0.14)'
+                    : 'color-mix(in srgb, var(--bg-surface) 88%, transparent)',
+                  border: isFocused
+                    ? '2px solid var(--accent)'
+                    : isTabActive
+                    ? '1.5px solid rgba(var(--accent-rgb), 0.65)'
+                    : '1px solid var(--border-subtle)',
+                  boxShadow: isFocused ? 'var(--accent-glow)' : undefined,
+                }}
+              >
+                <span
+                  style={{
+                    color:
+                      isFocused || isTabActive
+                        ? 'var(--accent)'
+                        : 'var(--text-secondary)',
+                  }}
+                >
+                  {renderCollectionIcon(col.icon, isFocused || isTabActive)}
+                </span>
+                <span className="font-display text-sm sm:text-base font-bold text-[var(--text-primary)]">
+                  {col.label}
+                </span>
+                <span className="text-xs font-mono-tech tabular-nums text-[var(--text-secondary)]">
+                  {col.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
     </main>
   );
 };

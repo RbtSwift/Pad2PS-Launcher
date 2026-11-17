@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-:root {
+:root,
+:root[data-theme="pad2ps-default"] {
   --bg-deep: #0B0B0F;
   --bg-surface: #121218;
   --border-subtle: #27273A;
@@ -8,8 +9,81 @@
   --text-secondary: #94A3B8;
   --accent: #FF2E93;
   --accent-rgb: 255, 46, 147;
+  --accent-secondary: #FF2E93;
+  --panel-radius: 1rem;
+  --btn-radius: 0.75rem;
+  --panel-border-width: 1px;
+  --panel-shadow: 0 24px 60px -15px rgba(0, 0, 0, 0.75);
   --accent-glow: 0 0 20px rgba(255, 46, 147, 0.45);
   --accent-glow-strong: 0 0 34px rgba(255, 46, 147, 0.65);
+}
+
+:root[data-theme="futuristic"] {
+  --bg-deep: #040A12;
+  --bg-surface: #091422;
+  --border-subtle: #14324D;
+  --text-primary: #ECF8FF;
+  --text-secondary: #7FB3D5;
+  --accent: #00F0FF;
+  --accent-rgb: 0, 240, 255;
+  --accent-secondary: #38BDF8;
+  --panel-radius: 0.5rem;
+  --btn-radius: 0.5rem;
+  --panel-border-width: 1px;
+  --panel-shadow: 0 20px 50px -12px rgba(0, 12, 24, 0.85), inset 0 0 24px rgba(0, 240, 255, 0.06);
+  --accent-glow: 0 0 20px rgba(0, 240, 255, 0.45);
+  --accent-glow-strong: 0 0 36px rgba(0, 240, 255, 0.7);
+}
+
+:root[data-theme="horror"] {
+  --bg-deep: #070607;
+  --bg-surface: #120D0E;
+  --border-subtle: #33181B;
+  --text-primary: #F2E8E9;
+  --text-secondary: #A68B8E;
+  --accent: #DC2626;
+  --accent-rgb: 220, 38, 38;
+  --accent-secondary: #991B1B;
+  --panel-radius: 0.75rem;
+  --btn-radius: 0.5rem;
+  --panel-border-width: 1px;
+  --panel-shadow: 0 28px 70px -10px rgba(0, 0, 0, 0.95);
+  --accent-glow: 0 0 22px rgba(220, 38, 38, 0.5);
+  --accent-glow-strong: 0 0 38px rgba(220, 38, 38, 0.75);
+}
+
+:root[data-theme="cute"] {
+  --bg-deep: #191326;
+  --bg-surface: #241B35;
+  --border-subtle: #433460;
+  --text-primary: #FDF4FF;
+  --text-secondary: #D8B4FE;
+  --accent: #F472B6;
+  --accent-rgb: 244, 114, 182;
+  --accent-secondary: #C084FC;
+  --panel-radius: 1.5rem;
+  --btn-radius: 1.25rem;
+  --panel-border-width: 1.5px;
+  --panel-shadow: 0 24px 54px -14px rgba(15, 8, 28, 0.72), 0 0 24px rgba(192, 132, 252, 0.14);
+  --accent-glow: 0 0 22px rgba(244, 114, 182, 0.45);
+  --accent-glow-strong: 0 0 34px rgba(192, 132, 252, 0.65);
+}
+
+:root[data-theme="pixel"] {
+  --bg-deep: #0F0E17;
+  --bg-surface: #1A1828;
+  --border-subtle: #484463;
+  --text-primary: #FFFFFE;
+  --text-secondary: #A7A9BE;
+  --accent: #FF8906;
+  --accent-rgb: 255, 137, 6;
+  --accent-secondary: #F25F4C;
+  --panel-radius: 0px;
+  --btn-radius: 0px;
+  --panel-border-width: 2px;
+  --panel-shadow: 4px 4px 0px #000000;
+  --accent-glow: 4px 4px 0px #000000;
+  --accent-glow-strong: 4px 4px 0px #000000, 0 0 18px rgba(255, 137, 6, 0.4);
 }
 
 @layer base {
@@ -31,8 +105,72 @@
   font-family: 'Outfit', system-ui, -apple-system, sans-serif;
 }
 
+:root[data-theme="pixel"] .font-display,
+:root[data-theme="pixel"] h1,
+:root[data-theme="pixel"] h2,
+:root[data-theme="pixel"] h3 {
+  font-family: 'Silkscreen', 'JetBrains Mono', monospace;
+  letter-spacing: 0.02em;
+}
+
+:root[data-theme="horror"] .font-display {
+  letter-spacing: 0.03em;
+}
+
 .font-mono-tech {
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+.theme-surface {
+  background-color: var(--bg-surface);
+  border-radius: var(--panel-radius);
+  border-width: var(--panel-border-width);
+  border-color: var(--border-subtle);
+  box-shadow: var(--panel-shadow);
+}
+
+.theme-control {
+  border-radius: var(--btn-radius);
+}
+
+:root[data-theme="pixel"] .theme-control {
+  box-shadow: 4px 4px 0px #000000;
+  border-width: 2px;
+}
+
+/* Pure CSS theme atmosphere layers (zero external images) */
+.theme-atmosphere-grid {
+  background-image:
+    linear-gradient(to right, rgba(0, 240, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 240, 255, 0.07) 1px, transparent 1px),
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 240, 255, 0.03) 0px,
+      rgba(0, 240, 255, 0.03) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+  background-size: 48px 48px, 48px 48px, 100% 4px;
+}
+
+.theme-atmosphere-horror {
+  background: radial-gradient(
+    ellipse 75% 70% at 50% 48%,
+    transparent 25%,
+    rgba(10, 2, 3, 0.72) 72%,
+    #020102 100%
+  );
+}
+
+.theme-atmosphere-cute {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(244, 114, 182, 0.16), transparent 45%),
+    radial-gradient(circle at 82% 78%, rgba(192, 132, 252, 0.18), transparent 48%);
+}
+
+.theme-atmosphere-pixel {
+  background-image: radial-gradient(rgba(255, 137, 6, 0.09) 1px, transparent 1px);
+  background-size: 20px 20px;
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -55,6 +193,11 @@
 
 .accent-ring-active {
   animation: pulse-ring 2.6s ease-in-out infinite;
+}
+
+:root[data-theme="pixel"] .accent-ring-active {
+  animation: none;
+  box-shadow: 4px 4px 0px #000000, 0 0 0 2px var(--accent);
 }
 
 @keyframes scanline-sweep {
