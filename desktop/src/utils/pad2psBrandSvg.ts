@@ -1,5 +1,5 @@
 /**
- * Identidade visual vetorial oficial do Pad2PS Launcher (v1.0.0).
+ * Identidade visual vetorial oficial do Pad2PS Launcher (v1.0.1).
  * Cartucho Neon (#FF1E8E sobre #09090D) em SVG puro 1024x1024.
  */
 
