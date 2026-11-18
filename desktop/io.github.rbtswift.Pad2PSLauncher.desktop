@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Pad2PS Launcher
+Comment=Central de jogos estilo console com navegação completa por controle
+Exec=pad2ps-launcher %U
+Icon=io.github.rbtswift.Pad2PSLauncher
+Terminal=false
+Type=Application
+Categories=Game;
+StartupWMClass=pad2ps-launcher

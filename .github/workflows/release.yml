@@ -1,0 +1,182 @@
+name: Release Multiplataforma (Desktop & Android)
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    name: Desktop Linux (.AppImage, .deb, .rpm, .tar.gz)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Instalar ferramentas de empacotamento RPM
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      - name: Instalar dependencias e compilar Vite + AppImage
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run build
+          npx electron-builder --linux AppImage --publish never
+
+      - name: Empacotar .deb, .rpm e .tar.gz
+        working-directory: desktop
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          mkdir -p artifacts
+          cp release/*.AppImage "artifacts/Pad2PS-Launcher-${VERSION}-x86_64.AppImage"
+          chmod +x "artifacts/Pad2PS-Launcher-${VERSION}-x86_64.AppImage"
+          tar -czf "artifacts/Pad2PS-Launcher-${VERSION}-x86_64.tar.gz" -C release linux-unpacked
+
+          # .deb nativo
+          mkdir -p build_deb/DEBIAN build_deb/opt/Pad2PS-Launcher build_deb/usr/bin build_deb/usr/share/applications build_deb/usr/share/icons/hicolor/256x256/apps build_deb/usr/share/icons/hicolor/512x512/apps
+          cp -a release/linux-unpacked/. build_deb/opt/Pad2PS-Launcher/
+          install -m 755 pad2ps-launcher-bin.sh build_deb/usr/bin/pad2ps-launcher
+          install -m 644 icon-256.png build_deb/usr/share/icons/hicolor/256x256/apps/pad2ps-launcher.png
+          install -m 644 icon.png build_deb/usr/share/icons/hicolor/512x512/apps/pad2ps-launcher.png
+          install -m 644 pad2ps-launcher.desktop build_deb/usr/share/applications/pad2ps-launcher.desktop
+          cat << EOF > build_deb/DEBIAN/control
+          Package: pad2ps-launcher
+          Version: ${VERSION}
+          Section: games
+          Priority: optional
+          Architecture: amd64
+          Maintainer: Pad2PS (Ravi Rosa) <pad2ps@eusolravi.com.br>
+          Homepage: https://github.com/RbtSwift/Pad2PS-Launcher
+          Description: Central de jogos estilo console com navegacao completa por controle
+          EOF
+          dpkg-deb --root-owner-group --build build_deb "artifacts/Pad2PS-Launcher-${VERSION}-amd64.deb"
+
+          # .rpm nativo
+          mkdir -p build_rpm/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+          cat << EOF > build_rpm/SPECS/pad2ps-launcher.spec
+          %global debug_package %{nil}
+          %global __strip /bin/true
+          %global __os_install_post %{nil}
+          Name: pad2ps-launcher
+          Version: ${VERSION}
+          Release: 1
+          Summary: Central de jogos estilo console com navegacao completa por controle
+          License: MIT
+          Vendor: Pad2PS
+          AutoReqProv: no
+          %description
+          Central de jogos estilo console com navegacao completa por controle.
+          %install
+          mkdir -p %{buildroot}/opt/Pad2PS-Launcher %{buildroot}/usr/bin %{buildroot}/usr/share/applications %{buildroot}/usr/share/icons/hicolor/256x256/apps
+          cp -a $(pwd)/release/linux-unpacked/. %{buildroot}/opt/Pad2PS-Launcher/
+          install -m 755 $(pwd)/pad2ps-launcher-bin.sh %{buildroot}/usr/bin/pad2ps-launcher
+          install -m 644 $(pwd)/icon-256.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/pad2ps-launcher.png
+          install -m 644 $(pwd)/pad2ps-launcher.desktop %{buildroot}/usr/share/applications/pad2ps-launcher.desktop
+          %files
+          /opt/Pad2PS-Launcher
+          /usr/bin/pad2ps-launcher
+          /usr/share/applications/pad2ps-launcher.desktop
+          /usr/share/icons/hicolor/256x256/apps/pad2ps-launcher.png
+          EOF
+          rpmbuild --define "_topdir $(pwd)/build_rpm" -bb build_rpm/SPECS/pad2ps-launcher.spec
+          cp build_rpm/RPMS/x86_64/*.rpm "artifacts/Pad2PS-Launcher-${VERSION}-x86_64.rpm"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: desktop/artifacts/*
+
+  build-windows:
+    name: Desktop Windows (.exe Setup & Portable)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Instalar dependencias e compilar Windows
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run build
+          npx electron-builder --win nsis portable --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            desktop/release/*Setup*.exe
+            desktop/release/*Portable*.exe
+
+  build-android:
+    name: Android (.apk & .aab)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: android/package-lock.json
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Instalar dependencias, sincronizar Capacitor e compilar Android
+        working-directory: android
+        run: |
+          npm ci
+          npm run build
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease bundleRelease
+
+      - name: Preparar artefatos Android
+        working-directory: android
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          mkdir -p artifacts
+          cp android/app/build/outputs/apk/release/*.apk "artifacts/Pad2PS-Launcher-${VERSION}-Android.apk"
+          cp android/app/build/outputs/bundle/release/*.aab "artifacts/Pad2PS-Launcher-${VERSION}-Android.aab"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-artifacts
+          path: android/artifacts/*
+
+  publish-release:
+    name: Publicar GitHub Release
+    needs: [build-linux, build-windows, build-android]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar todos os artefatos
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+          merge-multiple: true
+
+      - name: Criar Release no GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          files: all-artifacts/*
+          generate_release_notes: true

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Pad2PS Launcher</string>
+    <string name="title_activity_main">Pad2PS Launcher</string>
+    <string name="package_name">io.github.rbtswift.Pad2PSLauncher</string>
+    <string name="custom_url_scheme">io.github.rbtswift.Pad2PSLauncher</string>
+</resources>

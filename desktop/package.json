@@ -1,0 +1,100 @@
+{
+  "name": "pad2ps-launcher",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "electron-main.cjs",
+  "description": "Central de jogos estilo console com navegação completa por controle",
+  "author": {
+    "name": "Pad2PS (Ravi Rosa)",
+    "email": "pad2ps@eusolravi.com.br"
+  },
+  "homepage": "https://github.com/RbtSwift/Pad2PS-Launcher",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RbtSwift/Pad2PS-Launcher.git"
+  },
+  "scripts": {
+    "dev": "vite --port=3000 --host=0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview",
+    "clean": "rm -rf dist server.js",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "^2.4.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^6.1.1",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "vite": "^8.3.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "autoprefixer": "^10.4.21",
+    "electron": "^45.3.4",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.25.0",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.21.0",
+    "typescript": "^7.0.2"
+  },
+  "build": {
+    "appId": "io.github.rbtswift.Pad2PSLauncher",
+    "productName": "Pad2PS Launcher",
+    "copyright": "Copyright © 2026 Pad2PS (Ravi Rosa)",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "pad2ps_launcher.py",
+      "scanner_jogos.py",
+      "electron-main.cjs",
+      "electron-preload.cjs",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "*.py"
+    ],
+    "linux": {
+      "executableName": "pad2ps-launcher",
+      "category": "Game",
+      "vendor": "Pad2PS",
+      "maintainer": "Pad2PS (Ravi Rosa) <pad2ps@eusolravi.com.br>",
+      "synopsis": "Central de jogos estilo console com navegação completa por controle",
+      "description": "Transforme seu PC em uma central de jogos fluida feita para usar com gamepad. Reúne títulos de diferentes lojas e emuladores em um só lugar, com busca integrada de capas, temas visuais e proteção de tela.",
+      "icon": "icon.png",
+      "target": [
+        "AppImage"
+      ]
+    },
+    "appImage": {
+      "artifactName": "Pad2PS-Launcher-${version}-x86_64.${ext}"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "legalTrademarks": "Pad2PS",
+      "signtoolOptions": {
+        "publisherName": "Pad2PS"
+      },
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "artifactName": "Pad2PS-Launcher-${version}-Setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "Pad2PS-Launcher-${version}-Portable.${ext}"
+    }
+  }
+}

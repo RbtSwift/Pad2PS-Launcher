@@ -1,8 +1,39 @@
+# Node / Vite / Electron
 node_modules/
-build/
 dist/
-coverage/
-.DS_Store
+release/
+build_deb/
+build_rpm/
+flatpak_build/
+flatpak_repo/
+.flatpak-builder/
 *.log
-.env*
-!.env.example
+npm-debug.log*
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Android / Gradle / Capacitor
+android/android/.gradle/
+android/android/build/
+android/android/app/build/
+android/android/local.properties
+android/android/capacitor-cordova-android-plugins/src/main/libs/*.jar
+*.apk
+*.aab
+*.ap_
+*.dex
+*.keystore
+*.jks
+
+# IDEs / Sistema
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

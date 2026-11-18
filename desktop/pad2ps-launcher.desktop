@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Pad2PS Launcher
+Comment=Central de jogos estilo console com navegação completa por controle
+Exec=/usr/bin/pad2ps-launcher %U
+Icon=pad2ps-launcher
+Terminal=false
+Type=Application
+Categories=Game;
+StartupWMClass=pad2ps-launcher
