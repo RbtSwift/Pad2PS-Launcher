@@ -98,17 +98,10 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
   const isAddCardSelected = hasAddCard && selectedIndex === games.length;
   const selectedGame = !isAddCardSelected ? (games[selectedIndex] ?? null) : null;
 
-  const alignActiveCardLeft = (behavior: ScrollBehavior = 'smooth') => {
-    const track = trackRef.current;
+  const alignActiveCardLeft = (behavior: ScrollBehavior = "smooth") => {
     const el = cardRefs.current[selectedIndex];
-    if (!track || !el) return;
-
-    const leftInset = window.innerWidth >= 1024 ? 64 : 40; // matches pl-10 lg:pl-16
-    const targetLeft = Math.max(0, el.offsetLeft - leftInset);
-    track.scrollTo({
-      left: targetLeft,
-      behavior,
-    });
+    if (!el) return;
+    el.scrollIntoView({ behavior, block: "nearest", inline: "center" });
   };
 
   useEffect(() => {
@@ -297,36 +290,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
         </div>
       ) : (
         <div className="relative w-full flex items-center min-h-0">
-          {totalSlots > 1 && (
-            <>
-              <button
-                type="button"
-                onClick={() => handleStep(-1)}
-                aria-label="Jogo anterior"
-                className="theme-control hidden lg:flex absolute left-3 z-20 w-10 h-10 border items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-white/40 backdrop-blur-md transition-all cursor-pointer"
-                style={{
-                  backgroundColor:
-                    'color-mix(in srgb, var(--bg-surface) 88%, transparent)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              >
-                <ChevronLeft className="w-6 h-6" />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleStep(1)}
-                aria-label="Próximo jogo"
-                className="theme-control hidden lg:flex absolute right-4 z-20 w-10 h-10 border items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-white/40 backdrop-blur-md transition-all cursor-pointer"
-                style={{
-                  backgroundColor:
-                    'color-mix(in srgb, var(--bg-surface) 88%, transparent)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              >
-                <ChevronRight className="w-6 h-6" />
-              </button>
-            </>
-          )}
+          
 
           <div
             ref={trackRef}

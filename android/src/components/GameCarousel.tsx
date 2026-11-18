@@ -88,17 +88,10 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
   const isAddCardSelected = hasAddCard && selectedIndex === games.length;
   const selectedGame = !isAddCardSelected ? (games[selectedIndex] ?? null) : null;
 
-  const alignActiveCardLeft = (behavior: ScrollBehavior = 'smooth') => {
-    const track = trackRef.current;
+  const alignActiveCardLeft = (behavior: ScrollBehavior = "smooth") => {
     const el = cardRefs.current[selectedIndex];
-    if (!track || !el) return;
-
-    const leftInset = window.innerWidth >= 1024 ? 64 : 40; // matches pl-10 lg:pl-16
-    const targetLeft = Math.max(0, el.offsetLeft - leftInset);
-    track.scrollTo({
-      left: targetLeft,
-      behavior,
-    });
+    if (!el) return;
+    el.scrollIntoView({ behavior, block: "nearest", inline: "center" });
   };
 
   useEffect(() => {
@@ -130,7 +123,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
   return (
     <main className="relative z-10 flex-1 flex flex-col justify-center min-h-0 overflow-hidden">
       {/* Cabeçalho do Palco: Título do Jogo acima da capa + Pílulas Maiores e Separadas de Plataforma */}
-      <div className="px-6 sm:px-10 lg:px-16 pb-1 flex flex-row items-end justify-between gap-3 shrink-0">
+      <div className="px-6 sm:px-10 pb-2 flex flex-wrap items-center justify-between gap-3 shrink-0">
         {selectedGame ? (
           <div aria-live="polite" className="min-w-0 max-w-2xl">
             <div className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold tracking-wider uppercase text-[var(--text-secondary)] mb-1">
@@ -287,36 +280,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
         </div>
       ) : (
         <div className="relative w-full flex items-center min-h-0">
-          {totalSlots > 1 && (
-            <>
-              <button
-                type="button"
-                onClick={() => handleStep(-1)}
-                aria-label="Jogo anterior"
-                className="theme-control hidden lg:flex absolute left-3 z-20 w-10 h-10 border items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-white/40 backdrop-blur-md transition-all cursor-pointer"
-                style={{
-                  backgroundColor:
-                    'color-mix(in srgb, var(--bg-surface) 88%, transparent)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              >
-                <ChevronLeft className="w-6 h-6" />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleStep(1)}
-                aria-label="Próximo jogo"
-                className="theme-control hidden lg:flex absolute right-4 z-20 w-10 h-10 border items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-white/40 backdrop-blur-md transition-all cursor-pointer"
-                style={{
-                  backgroundColor:
-                    'color-mix(in srgb, var(--bg-surface) 88%, transparent)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              >
-                <ChevronRight className="w-6 h-6" />
-              </button>
-            </>
-          )}
+          
 
           <div
             ref={trackRef}
@@ -358,7 +322,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
                       isSelected ? 'accent-ring-active' : ''
                     }`}
                     style={{
-                      height: 'clamp(145px, 34vh, 420px)',
+                      height: 'clamp(130px, 31vh, 400px)',
                       backgroundColor: 'var(--bg-surface)',
                       border: isSelected
                         ? '3px solid var(--accent)'
@@ -397,7 +361,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
                       <div
                         className="w-full aspect-[2/3] scale-y-[-1] blur-[1px]"
                         style={{
-                          height: 'clamp(145px, 34vh, 420px)',
+                          height: 'clamp(130px, 31vh, 400px)',
                         }}
                       >
                         <CoverImage game={game} />
@@ -437,7 +401,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
                       : ''
                   }`}
                   style={{
-                    height: 'clamp(145px, 34vh, 420px)',
+                    height: 'clamp(130px, 31vh, 400px)',
                     backgroundColor:
                       'color-mix(in srgb, var(--bg-surface) 78%, transparent)',
                     borderWidth:
