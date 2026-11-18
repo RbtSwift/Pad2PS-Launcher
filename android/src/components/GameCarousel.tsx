@@ -9,17 +9,7 @@ import {
 } from 'lucide-react';
 import { Game, LauncherPage, LibraryPlatformFilter } from '../types';
 
-export const LIBRARY_PLATFORM_FILTERS: LibraryPlatformFilter[] = [
-  'Todos',
-  'Steam',
-  'Epic',
-  'Heroic',
-  'GOG',
-  'Xbox',
-  'Lutris',
-  'itch.io',
-  'Emuladores',
-];
+export const LIBRARY_PLATFORM_FILTERS: LibraryPlatformFilter[] = ["Todos", "Android" as LibraryPlatformFilter, "Emuladores"];
 
 interface GameCarouselProps {
   page: Extract<LauncherPage, 'favorites' | 'library'>;
@@ -140,7 +130,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
   return (
     <main className="relative z-10 flex-1 flex flex-col justify-center min-h-0 overflow-hidden">
       {/* Cabeçalho do Palco: Título do Jogo acima da capa + Pílulas Maiores e Separadas de Plataforma */}
-      <div className="px-10 lg:px-16 pb-2 flex flex-col xl:flex-row xl:items-end justify-between gap-3 shrink-0">
+      <div className="px-6 sm:px-10 lg:px-16 pb-1 flex flex-row items-end justify-between gap-3 shrink-0">
         {selectedGame ? (
           <div aria-live="polite" className="min-w-0 max-w-2xl">
             <div className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold tracking-wider uppercase text-[var(--text-secondary)] mb-1">
@@ -330,7 +320,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
 
           <div
             ref={trackRef}
-            className="w-full flex items-start gap-6 lg:gap-8 overflow-x-auto no-scrollbar pl-10 lg:pl-16 pr-[70vw] pt-4 pb-12 scroll-smooth"
+            className="w-full flex items-start gap-6 lg:gap-8 overflow-x-auto no-scrollbar pl-6 sm:pl-10 lg:pl-16 pr-[50vw] pt-2 pb-20 scroll-smooth"
             role="listbox"
             aria-label="Carrossel de Jogos"
           >
@@ -368,7 +358,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
                       isSelected ? 'accent-ring-active' : ''
                     }`}
                     style={{
-                      height: 'clamp(260px, 41vh, 450px)',
+                      height: 'clamp(145px, 34vh, 420px)',
                       backgroundColor: 'var(--bg-surface)',
                       border: isSelected
                         ? '3px solid var(--accent)'
@@ -407,7 +397,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
                       <div
                         className="w-full aspect-[2/3] scale-y-[-1] blur-[1px]"
                         style={{
-                          height: 'clamp(260px, 41vh, 450px)',
+                          height: 'clamp(145px, 34vh, 420px)',
                         }}
                       >
                         <CoverImage game={game} />
@@ -447,7 +437,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
                       : ''
                   }`}
                   style={{
-                    height: 'clamp(260px, 41vh, 450px)',
+                    height: 'clamp(145px, 34vh, 420px)',
                     backgroundColor:
                       'color-mix(in srgb, var(--bg-surface) 78%, transparent)',
                     borderWidth:

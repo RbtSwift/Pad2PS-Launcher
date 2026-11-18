@@ -892,7 +892,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           {/* Coluna Direita: Painel Amplo e Legível */}
           <section
             aria-live="polite"
-            className="theme-surface flex-1 min-w-0 min-h-0 p-5 sm:p-6 lg:p-8 overflow-y-auto no-scrollbar backdrop-blur-xl"
+            className="theme-surface flex-1 min-w-0 min-h-0 p-4 sm:p-6 lg:p-8 pb-24 overflow-y-auto no-scrollbar backdrop-blur-xl"
             style={{
               backgroundColor:
                 'color-mix(in srgb, var(--bg-surface) 84%, transparent)',
