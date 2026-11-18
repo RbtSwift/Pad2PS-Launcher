@@ -399,7 +399,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
             IDLE_TIMEOUT_OPTIONS.length +
             SCREENSAVER_MODE_OPTIONS.length +
             customControlsCount +
-            4
+            5
           );
       }
     };
@@ -421,11 +421,15 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
       showToast('Chave SteamGridDB removida.');
     };
 
-    const handleDownloadLogo = async () => {
+    const handleDownloadLogo = async (variant: 'full' | 'icon' = 'full') => {
       try {
         setExportingLogo(true);
-        await exportPad2PSLogoPng(effectiveAccentHex);
-        showToast('Logo pad2ps-launcher-logo.png (1024×1024) baixada!');
+        await exportPad2PSLogoPng(effectiveAccentHex, variant);
+        showToast(
+          variant === 'icon'
+            ? 'Ícone pad2ps-launcher-icon.png (1024×1024) baixado!'
+            : 'Logo pad2ps-launcher-logo.png (1024×1024) baixada!'
+        );
       } catch {
         showToast('Erro ao gerar PNG da logo.');
       } finally {
@@ -646,11 +650,14 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           handleToggleAutostart();
         } else if (idx === utilitiesStart + 1) {
           soundEngine.playConfirm();
-          handleDownloadLogo();
+          handleDownloadLogo('full');
         } else if (idx === utilitiesStart + 2) {
           soundEngine.playConfirm();
-          onRestart();
+          handleDownloadLogo('icon');
         } else if (idx === utilitiesStart + 3) {
+          soundEngine.playConfirm();
+          onRestart();
+        } else if (idx === utilitiesStart + 4) {
           soundEngine.playCancel();
           const desktop = (window as unknown as {
             pad2psDesktop?: { quitApp?: () => void };
@@ -2418,8 +2425,9 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                     SCREENSAVER_MODE_OPTIONS.length +
                     customControlsCount;
                   const downloadIdx = autostartIdx + 1;
-                  const restartIdx = autostartIdx + 2;
-                  const quitIdx = autostartIdx + 3;
+                  const downloadIconIdx = autostartIdx + 2;
+                  const restartIdx = autostartIdx + 3;
+                  const quitIdx = autostartIdx + 4;
 
                   return (
                     <div
@@ -2510,7 +2518,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                         }}
                         onClick={() => {
                           soundEngine.playConfirm();
-                          handleDownloadLogo();
+                          handleDownloadLogo('full');
                         }}
                         className="theme-control w-full flex items-center gap-4 p-4 sm:p-5 text-left transition-all cursor-pointer"
                         style={{
@@ -2545,10 +2553,65 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                           <p className="font-display text-base lg:text-lg font-bold text-[var(--text-primary)]">
                             {exportingLogo
                               ? 'Gerando PNG 1024×1024...'
-                              : 'Baixar Logo Oficial (PNG 1024×1024)'}
+                              : 'Baixar Logo Completa (PNG 1024×1024)'}
                           </p>
                           <p className="text-sm lg:text-base text-[var(--text-secondary)] mt-0.5 leading-relaxed">
-                            Exporta o logotipo vetorial Pad2PS Launcher com fundo transparente na cor do tema ativo.
+                            Exporta o Cartucho Neon + assinatura Pad2PS LAUNCHER com fundo transparente na cor do tema ativo.
+                          </p>
+                        </div>
+                      </button>
+
+                      {/* Baixar Ícone do Cartucho PNG */}
+                      <button
+                        ref={(el) => {
+                          contentRefs.current[downloadIconIdx] = el;
+                        }}
+                        type="button"
+                        onMouseEnter={() => {
+                          setFocusPane('content');
+                          setContentFocusIndex(downloadIconIdx);
+                        }}
+                        onClick={() => {
+                          soundEngine.playConfirm();
+                          handleDownloadLogo('icon');
+                        }}
+                        className="theme-control w-full flex items-center gap-4 p-4 sm:p-5 text-left transition-all cursor-pointer"
+                        style={{
+                          backgroundColor:
+                            focusPane === 'content' &&
+                            contentFocusIndex === downloadIconIdx
+                              ? 'rgba(var(--accent-rgb), 0.14)'
+                              : 'var(--bg-deep)',
+                          border:
+                            focusPane === 'content' &&
+                            contentFocusIndex === downloadIconIdx
+                              ? '2px solid var(--accent)'
+                              : '1px solid var(--border-subtle)',
+                          boxShadow:
+                            focusPane === 'content' &&
+                            contentFocusIndex === downloadIconIdx
+                              ? 'var(--accent-glow)'
+                              : undefined,
+                        }}
+                      >
+                        <div
+                          className="theme-control w-12 h-12 border flex items-center justify-center shrink-0"
+                          style={{
+                            backgroundColor: 'var(--bg-surface)',
+                            borderColor: 'var(--border-subtle)',
+                            color: 'var(--accent)',
+                          }}
+                        >
+                          <Download className="w-6 h-6" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-display text-base lg:text-lg font-bold text-[var(--text-primary)]">
+                            {exportingLogo
+                              ? 'Gerando PNG 1024×1024...'
+                              : 'Baixar Ícone do Cartucho (PNG 1024×1024)'}
+                          </p>
+                          <p className="text-sm lg:text-base text-[var(--text-secondary)] mt-0.5 leading-relaxed">
+                            Exporta apenas o ícone quadrado (squircle) do Cartucho Neon em alta resolução e fundo transparente.
                           </p>
                         </div>
                       </button>
