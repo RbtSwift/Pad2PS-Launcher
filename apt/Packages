@@ -1,12 +1,12 @@
 Package: pad2ps-launcher
-Version: 1.0.7
+Version: 1.0.8
 Architecture: amd64
 Maintainer: Pad2PS (Ravi Rosa) <pad2ps@eusolravi.com.br>
-Filename: Pad2PS-Launcher-1.0.7-amd64.deb
-Size: 129287334
-MD5sum: 3f2d0b2a46aa4a1a0d5844b400de4bfa
-SHA1: 2a4823524ad02b2ae567919a4995773070b9b916
-SHA256: 198b8cc5103e92a12dffcc06fdef558c5d5cec50b1b576b683e4f8f041f69134
+Filename: Pad2PS-Launcher-1.0.8-amd64.deb
+Size: 129287770
+MD5sum: e15bb6b2e4051095e475bd2adc361983
+SHA1: cd12e4a9ce356c2a7158705f76c47d67ecb45721
+SHA256: 7384b6635c79fa4d6ea1f071f331edb22af6e5eff33361b0860c2d5dff428bb5
 Section: games
 Priority: optional
 Homepage: https://github.com/RbtSwift/Pad2PS-Launcher
