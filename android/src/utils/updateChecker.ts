@@ -21,6 +21,8 @@ export interface UpdateCheckResult {
   error?: string;
 }
 
+export const CURRENT_APP_VERSION = '1.0.10';
+
 export function compareSemver(v1: string, v2: string): number {
   const parseParts = (v: string) =>
     v
@@ -57,7 +59,7 @@ export function detectPlatform(): 'android' | 'windows' | 'linux' {
 
 export async function checkForAppUpdate(
   repo: 'RbtSwift/Pad2PS' | 'RbtSwift/Pad2PS-Launcher' = 'RbtSwift/Pad2PS-Launcher',
-  currentVersion = '1.0.6'
+  currentVersion = CURRENT_APP_VERSION
 ): Promise<UpdateCheckResult> {
   try {
     const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {

@@ -130,14 +130,14 @@ export const GameFormModal: React.FC<GameFormModalProps> = ({
 
   return (
     <>
-      <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/75 backdrop-blur-md p-4" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget && !showCoverFinder) onClose(); }}>
-        <div className="theme-surface w-full max-w-2xl p-5 sm:p-6 max-h-[90vh] overflow-y-auto no-scrollbar">
+      <div className="android-game-form-overlay fixed inset-0 z-40 flex items-center justify-center bg-black/75 backdrop-blur-md p-4" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget && !showCoverFinder) onClose(); }}>
+        <div className="android-game-form-panel theme-surface w-full max-w-2xl p-5 sm:p-6 max-h-[90vh] overflow-y-auto no-scrollbar">
           <div className="flex items-center justify-between gap-4 pb-3.5 mb-4 border-b" style={{ borderColor: "var(--border-subtle)" }}>
             <h2 className="font-display text-xl font-bold text-[var(--text-primary)]">{isEditing ? `Editar ${initialGame?.title}` : "Adicionar Jogo"}</h2>
             <button type="button" onClick={onClose} className="theme-control p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"><X className="w-5 h-5" /></button>
           </div>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-[155px_1fr] gap-5">
-            <div className="flex flex-col items-center gap-2">
+          <form onSubmit={handleSubmit} className="android-game-form grid grid-cols-1 sm:grid-cols-[155px_1fr] gap-5">
+            <div className="android-game-form-cover flex flex-col items-center gap-2">
               <div className="theme-control w-32 sm:w-full aspect-[2/3] overflow-hidden border flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-subtle)" }}>
                 {coverUrl ? <img src={coverUrl} alt="Capa" referrerPolicy="no-referrer" className="w-full h-full object-cover" /> : <div className="flex flex-col items-center text-center p-2 text-[var(--text-secondary)]"><ImagePlus className="w-7 h-7 mb-1 opacity-70" /><span className="text-[11px]">Sem Capa</span></div>}
               </div>

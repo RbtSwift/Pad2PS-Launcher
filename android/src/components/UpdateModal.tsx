@@ -1,5 +1,5 @@
 import { Download, ExternalLink, Sparkles, X } from 'lucide-react';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { UpdateCheckResult } from '../utils/updateChecker';
 
 interface UpdateModalProps {
@@ -16,6 +16,7 @@ export function UpdateModal({
   appName = 'Pad2PS Launcher',
 }: UpdateModalProps) {
   const primaryButtonRef = useRef<HTMLButtonElement>(null);
+  const [notesLanguage, setNotesLanguage] = useState<'pt' | 'en'>('pt');
 
   useEffect(() => {
     if (isOpen) {
@@ -35,6 +36,21 @@ export function UpdateModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  const localizedNotes = useMemo(() => {
+    const releaseNotes = updateInfo?.releaseNotes ?? '';
+    const sections = [...releaseNotes.matchAll(/(?:^|\n)#{1,3}\s*([^\n]+)\n([\s\S]*?)(?=\n#{1,3}\s|$)/g)];
+    const headingMatch = (heading: string) => notesLanguage === 'pt'
+      ? /portugu[eê]s|brasil|pt-br/i.test(heading)
+      : /english|ingl[eê]s/i.test(heading);
+    const section = sections.find(([_, heading]) => headingMatch(heading));
+    const raw = section?.[2] ?? releaseNotes;
+    return raw
+      .split('\n')
+      .map((line) => line.replace(/^\s*[-*]\s*/, '').replace(/\*\*/g, '').replace(/`/g, '').trim())
+      .filter(Boolean)
+      .slice(0, 5);
+  }, [notesLanguage, updateInfo?.releaseNotes]);
+
   if (!isOpen || !updateInfo) return null;
 
   const handleDownload = (url: string) => {
@@ -43,13 +59,13 @@ export function UpdateModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+      className="android-update-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className="relative w-full max-w-xl rounded-2xl bg-[var(--bg-deep,#0B0B0F)] border border-[var(--border-subtle,#27273A)] shadow-2xl overflow-hidden text-left"
+        className="android-update-panel relative w-full max-w-xl rounded-2xl bg-[var(--bg-deep,#0B0B0F)] border border-[var(--border-subtle,#27273A)] shadow-2xl overflow-hidden text-left"
         style={{
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.7)',
         }}
@@ -57,7 +73,7 @@ export function UpdateModal({
       >
         {/* Cabeçalho */}
         <div
-          className="relative p-6 border-b flex items-center justify-between gap-4"
+          className="android-update-header relative p-6 border-b flex items-center justify-between gap-4"
           style={{
             borderColor: 'var(--border-subtle,#27273A)',
             backgroundColor: 'var(--bg-surface,#14141B)',
@@ -95,7 +111,7 @@ export function UpdateModal({
         </div>
 
         {/* Corpo: Notas de Atualização */}
-        <div className="p-6 max-h-[55vh] overflow-y-auto space-y-4">
+        <div className="android-update-body p-6 max-h-[55vh] overflow-y-auto space-y-4">
           {updateInfo.releaseName && updateInfo.releaseName !== `v${updateInfo.latestVersion}` && (
             <p className="font-display font-bold text-base text-[var(--text-primary,#FFFFFF)]">
               {updateInfo.releaseName}
@@ -107,13 +123,19 @@ export function UpdateModal({
               Novidades e Melhorias desta Versão:
             </h4>
             <div
-              className="p-4 rounded-xl border font-sans text-xs sm:text-sm whitespace-pre-wrap leading-relaxed text-[var(--text-primary,#E4E4E7)]"
+              className="android-update-notes p-4 rounded-xl border font-sans text-xs sm:text-sm leading-relaxed text-[var(--text-primary,#E4E4E7)]"
               style={{
                 backgroundColor: 'var(--bg-surface,#14141B)',
                 borderColor: 'var(--border-subtle,#27273A)',
               }}
             >
-              {updateInfo.releaseNotes || 'Atualizações de desempenho, correções de compatibilidade e melhorias gerais.'}
+              <div className="android-update-language flex gap-1.5 mb-3">
+                <button type="button" onClick={() => setNotesLanguage('pt')} aria-pressed={notesLanguage === 'pt'}>PT-BR</button>
+                <button type="button" onClick={() => setNotesLanguage('en')} aria-pressed={notesLanguage === 'en'}>EN</button>
+              </div>
+              <ul className="android-update-note-list">
+                {(localizedNotes.length ? localizedNotes : [notesLanguage === 'pt' ? 'Atualizações de desempenho, correções de compatibilidade e melhorias gerais.' : 'Performance improvements, compatibility fixes, and general enhancements.']).map((note, index) => <li key={`${index}-${note}`}>{note}</li>)}
+              </ul>
             </div>
           </div>
 
@@ -166,7 +188,7 @@ export function UpdateModal({
 
         {/* Rodapé com atalho e link GitHub */}
         <div
-          className="p-4 border-t flex items-center justify-between gap-4"
+          className="android-update-footer p-4 border-t flex items-center justify-between gap-4"
           style={{
             borderColor: 'var(--border-subtle,#27273A)',
             backgroundColor: 'var(--bg-surface,#14141B)',

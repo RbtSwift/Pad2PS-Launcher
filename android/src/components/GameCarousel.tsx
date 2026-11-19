@@ -121,7 +121,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
   };
 
   return (
-    <main className="android-game-carousel relative z-10 flex-1 flex flex-col justify-center min-h-0 overflow-hidden">
+    <main className={`android-game-carousel android-game-carousel-${page} relative z-10 flex-1 flex flex-col justify-center min-h-0 overflow-hidden`}>
       {/* Cabeçalho do Palco: Título do Jogo acima da capa + Pílulas Maiores e Separadas de Plataforma */}
       <div className="android-game-carousel-header px-6 sm:px-10 pb-2 flex flex-wrap items-center justify-between gap-3 shrink-0">
         {selectedGame ? (
@@ -241,7 +241,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
 
       {/* Área do Carrossel Horizontal Minimalista */}
       {totalSlots === 0 ? (
-        <div className="px-10 lg:px-16 py-8 flex flex-col items-start">
+        <div className="android-game-empty-state px-10 lg:px-16 py-8 flex flex-col items-start">
           <div
             className="theme-control w-16 h-16 border flex items-center justify-center mb-4"
             style={{

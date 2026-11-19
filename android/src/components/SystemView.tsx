@@ -35,7 +35,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import { checkForAppUpdate, type UpdateCheckResult } from '../utils/updateChecker';
+import { checkForAppUpdate, CURRENT_APP_VERSION, type UpdateCheckResult } from '../utils/updateChecker';
 import { DEFAULT_TRANSLATOR_URL, THEMES } from '../data/defaultGames';
 import {
   isAndroidNative,
@@ -430,7 +430,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           showToast('Não foi possível verificar atualizações. Sem conexão.');
         } else {
           soundEngine.playConfirm();
-          showToast('O Pad2PS Launcher está atualizado (v1.0.6)!');
+          showToast(`O Pad2PS Launcher está atualizado (v${CURRENT_APP_VERSION})!`);
         }
       } catch {
         showToast('Erro ao verificar atualizações.');

@@ -98,14 +98,14 @@ export const WelcomeControllerModal = forwardRef<
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B0B0F]/92 backdrop-blur-xl p-4 sm:p-6"
+      className="android-welcome-controller-modal fixed inset-0 z-50 flex items-center justify-center bg-[#0B0B0F]/92 backdrop-blur-xl p-4 sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="welcome-controller-title"
     >
-      <div className="w-full max-w-3xl bg-[#121218] border border-[#27273A] rounded-2xl p-6 sm:p-8 shadow-2xl">
+      <div className="android-welcome-controller-panel w-full max-w-3xl bg-[#121218] border border-[#27273A] rounded-2xl p-6 sm:p-8 shadow-2xl">
         {/* Header with Pad2PS Logo */}
-        <div className="flex flex-col items-center text-center mb-7">
+        <div className="android-welcome-controller-header flex flex-col items-center text-center mb-7">
           <div className="mb-4">
             <Logo size="lg" />
           </div>

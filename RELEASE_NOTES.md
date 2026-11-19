@@ -1,11 +1,13 @@
 ## Português (Brasil)
 
-- Ajusta a interface Android para telas de celular em paisagem, com capas menores e centralizadas na biblioteca.
-- Compacta os filtros e reorganiza as categorias das configurações em uma faixa horizontal, deixando o painel de conteúdo mais legível e rolável.
-- Mantém a navegação e o layout de desktop sem alterações.
+- Reorganiza a interface Android para celulares em paisagem, mantendo o estilo de console com biblioteca compacta e filtros alinhados.
+- Ajusta a tela de configurações, a escolha inicial do controle e os diálogos para aproveitar melhor a altura limitada do celular.
+- Destaca a seleção de apps instalados ao adicionar jogos e organiza as notas de atualização em português e inglês.
+- Mostra a versão Android instalada corretamente no verificador de atualizações.
 
 ## English
 
-- Improves the Android interface on phones in landscape orientation, with smaller, centered game covers in the library.
-- Compacts the filters and arranges settings categories in a horizontal strip, making the content panel easier to read and scroll.
-- Keeps desktop navigation and layout unchanged.
+- Reorganizes the Android interface for landscape phones, keeping the console style with a compact library and aligned filters.
+- Adjusts settings, initial controller selection, and dialogs to make better use of the phone's limited height.
+- Highlights installed-app selection when adding games and organizes update notes in Portuguese and English.
+- Shows the correct installed Android version in the update checker.
