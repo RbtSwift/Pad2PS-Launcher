@@ -102,6 +102,7 @@ interface SystemViewProps {
   onSleepMode: () => void;
   onRestart: () => void;
   onOpenUpdateModal?: (info: UpdateCheckResult) => void;
+  onOpenControllerTest?: () => void;
 }
 
 const CATEGORIES: {
@@ -282,6 +283,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
       onSleepMode,
       onRestart,
       onOpenUpdateModal,
+      onOpenControllerTest,
     },
     ref
   ) => {
@@ -391,9 +393,9 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
         case 'appearance':
           return THEMES.length + customThemeControlsCount;
         case 'controller':
-          // 4 layouts + 1 sound toggle + 7 remappable actions + 1 reset button = 13
+          // Layouts, sound, remappable actions, reset, and controller test.
           return (
-            CONTROLLER_OPTIONS.length + 1 + REMAPPABLE_ACTIONS_META.length + 1
+            CONTROLLER_OPTIONS.length + 1 + REMAPPABLE_ACTIONS_META.length + 2
           );
         case 'covers':
           return 2; // Save key + Clear key
@@ -415,7 +417,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
         setIsCheckingUpdates(true);
         soundEngine.playMove();
         showToast('Verificando atualizações no GitHub...');
-        const res = await checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.4');
+        const res = await checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.5');
         if (res.hasUpdate && onOpenUpdateModal) {
           soundEngine.playConfirm();
           onOpenUpdateModal(res);
@@ -424,7 +426,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           showToast('Não foi possível verificar atualizações. Sem conexão.');
         } else {
           soundEngine.playConfirm();
-          showToast('O Pad2PS Launcher está atualizado (v1.0.4)!');
+          showToast('O Pad2PS Launcher está atualizado (v1.0.5)!');
         }
       } catch {
         showToast('Erro ao verificar atualizações.');
@@ -645,8 +647,13 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
             onStartCaptureButton(meta.id);
           }
         } else {
-          onResetButtonMapping();
-          showToast('Mapeamento de botões restaurado para o padrão!');
+          const resetIndex = CONTROLLER_OPTIONS.length + 1 + REMAPPABLE_ACTIONS_META.length;
+          if (idx === resetIndex) {
+            onResetButtonMapping();
+            showToast('Mapeamento de botões restaurado para o padrão!');
+          } else {
+            onOpenControllerTest?.();
+          }
         }
         return;
       }
@@ -1706,6 +1713,11 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                         </button>
                       );
                     })()}
+                    {(() => {
+                      const testIndex = CONTROLLER_OPTIONS.length + 1 + REMAPPABLE_ACTIONS_META.length + 1;
+                      const focused = focusPane === 'content' && contentFocusIndex === testIndex;
+                      return <button ref={(el) => { contentRefs.current[testIndex] = el; }} type="button" onMouseEnter={() => { setFocusPane('content'); setContentFocusIndex(testIndex); }} onClick={() => onOpenControllerTest?.()} className="theme-control w-full flex items-center justify-center gap-2.5 p-3.5 text-sm lg:text-base font-bold transition-all cursor-pointer mt-1" style={{backgroundColor: focused ? 'rgba(var(--accent-rgb), 0.16)' : 'var(--bg-surface)', border: focused ? '2px solid var(--accent)' : '1px solid var(--border-subtle)', color: 'var(--text-primary)'}}><Gamepad2 className="w-4 h-4"/><span>Testar Controle</span></button>;
+                    })()}
                   </div>
                 </div>
               </div>
@@ -2703,7 +2715,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                               Verificar Atualizações
                             </p>
                             <p className="text-sm lg:text-base text-[var(--text-secondary)] mt-0.5 leading-relaxed">
-                              Versão v1.0.4 instalada. Consulta releases oficiais no GitHub e oferece downloads compatíveis.
+                              Versão v1.0.5 instalada. Consulta releases oficiais no GitHub e oferece downloads compatíveis.
                             </p>
                           </div>
                         </div>

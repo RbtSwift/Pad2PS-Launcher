@@ -57,7 +57,7 @@ export function detectPlatform(): 'android' | 'windows' | 'linux' {
 
 export async function checkForAppUpdate(
   repo: 'RbtSwift/Pad2PS' | 'RbtSwift/Pad2PS-Launcher' = 'RbtSwift/Pad2PS-Launcher',
-  currentVersion = '1.0.4'
+  currentVersion = '1.0.5'
 ): Promise<UpdateCheckResult> {
   try {
     const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {

@@ -20,6 +20,7 @@ export interface GamepadActions {
   onDown?: () => void;
   onConfirm?: () => void; // Mapped confirm (default 0) or Enter
   onCancel?: () => void; // Mapped cancel (default 1) or Esc
+  onEscape?: () => boolean; // Return true when Escape was handled specially
   onOptions?: () => void; // Mapped options (default 2)
   onFavorite?: () => void; // Mapped favorite/random (default 3)
   onPrevTab?: () => void; // Mapped prevTab (default 4)
@@ -291,6 +292,7 @@ export function useGamepadNavigation(actions: GamepadActions) {
 
       if (e.key === 'Escape') {
         e.preventDefault();
+        if (actionsRef.current.onEscape?.()) return;
         actionsRef.current.onCancel?.();
         return;
       }

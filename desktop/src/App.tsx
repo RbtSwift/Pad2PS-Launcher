@@ -20,6 +20,7 @@ import { SystemView, SystemViewHandle } from './components/SystemView';
 import { TopBar } from './components/TopBar';
 import { TranslatorModal } from './components/TranslatorModal';
 import { UpdateModal } from './components/UpdateModal';
+import { ControllerTestModal } from './components/ControllerTestModal';
 import { checkForAppUpdate, type UpdateCheckResult } from './utils/updateChecker';
 import {
   WelcomeControllerModal,
@@ -317,7 +318,7 @@ export default function App() {
 
   useEffect(() => {
     let isMounted = true;
-    checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.4')
+    checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.5')
       .then((res) => {
         if (isMounted && res.hasUpdate) {
           setUpdateInfo(res);
@@ -1174,7 +1175,22 @@ export default function App() {
         }
       }
     },
+    onEscape: () => {
+      if (activeModal === 'controller-test') return true;
+      if (
+        activeModal === 'none' && !isUpdateModalOpen && !capturingAction &&
+        !isSleeping && !launchingGame && !isFormCoverFinderOpen &&
+        activePage === 'library' && libraryFocusZone === 'games'
+      ) {
+        fetch('/api/quit', { method: 'POST' }).catch(() => {
+          if (window.confirm('Sair do Pad2PS Launcher?')) window.close();
+        });
+        return true;
+      }
+      return false;
+    },
     onCancel: () => {
+      if (activeModal === 'controller-test') return;
       if (capturingAction) {
         soundEngine.playCancel();
         setCapturingAction(null);
@@ -1395,6 +1411,7 @@ export default function App() {
               setSelectedIndex(0);
             }}
             onSleepMode={() => setIsSleeping(true)}
+            onOpenControllerTest={() => setActiveModal('controller-test')}
             onOpenUpdateModal={(info) => {
               setUpdateInfo(info);
               setIsUpdateModalOpen(true);
@@ -1606,6 +1623,10 @@ export default function App() {
             connectedGamepad={connectedGamepad}
             onSelectLayout={handleCompleteOnboarding}
           />
+        )}
+
+        {activeModal === 'controller-test' && (
+          <ControllerTestModal layout={resolvedLayout} onExit={() => setActiveModal('none')} />
         )}
 
         {/* Modo Descanso / Screensaver */}

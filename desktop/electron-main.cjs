@@ -22,6 +22,13 @@ const DIST_DIR = path.join(__dirname, 'dist');
 
 let httpServer = null;
 let mainWindow = null;
+let allowQuit = false;
+let quitDialogOpen = false;
+
+function requestQuit() {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+  else app.quit();
+}
 
 // ============================================================================
 // MIME TYPES PARA O SERVIDOR DE ARQUIVOS ESTÁTICOS
@@ -783,11 +790,7 @@ function startHttpServer() {
 
       // API: POST /api/quit
       if (req.method === 'POST' && pathname === '/api/quit') {
-        if (mainWindow) {
-          mainWindow.close();
-        } else {
-          app.quit();
-        }
+        requestQuit();
         return sendJson({ ok: true });
       }
       // API: GET /api/games
@@ -931,10 +934,13 @@ async function createWindow() {
 
   mainWindow.loadURL(`http://127.0.0.1:${port}/index.html`);
 
-  let allowQuit = false;
+  allowQuit = false;
+  quitDialogOpen = false;
   mainWindow.on('close', (e) => {
     if (allowQuit) return;
     e.preventDefault();
+    if (quitDialogOpen) return;
+    quitDialogOpen = true;
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.focus();
     }
@@ -948,12 +954,13 @@ async function createWindow() {
         message: 'Sair do Pad2PS Launcher?',
       })
       .then(({ response }) => {
+        quitDialogOpen = false;
         if (response === 0) {
           allowQuit = true;
           app.exit(0);
         }
       })
-      .catch(() => {});
+      .catch(() => { quitDialogOpen = false; });
   });
 
   mainWindow.on('closed', () => {

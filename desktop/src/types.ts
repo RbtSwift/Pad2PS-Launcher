@@ -139,7 +139,8 @@ export type ActiveModal =
   | 'add-game'
   | 'edit-game'
   | 'game-options'
-  | 'cover-finder';
+  | 'cover-finder'
+  | 'controller-test';
 
 declare global {
   interface Window {
