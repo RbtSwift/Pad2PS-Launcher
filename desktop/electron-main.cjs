@@ -761,19 +761,24 @@ function startHttpServer() {
 
       // API: POST /api/pick-game
       if (req.method === "POST" && pathname === "/api/pick-game") {
-        const resDlg = await dialog.showOpenDialog({
+        dialog.showOpenDialog({
           title: "Selecionar Executável, ROM ou Atalho do Jogo",
           properties: ["openFile"],
           filters: [
             { name: "Jogos, Executáveis e ROMs", extensions: ["exe", "sh", "AppImage", "desktop", "iso", "bin", "chd", "cso", "nsp", "xci", "z64", "n64", "gba", "sfc", "smc", "nds", "3ds", "pkg", "rpcs3"] },
             { name: "Todos os Arquivos", extensions: ["*"] }
           ]
+        }).then((resDlg) => {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          if (resDlg.canceled || !resDlg.filePaths[0]) return res.end(JSON.stringify({ canceled: true }));
+          const full = resDlg.filePaths[0];
+          const base = path.basename(full, path.extname(full)).replace(/[_-]+/g, " ").trim();
+          return res.end(JSON.stringify({ canceled: false, path: full, title: base }));
+        }).catch(() => {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ canceled: true }));
         });
-        res.writeHead(200, { "Content-Type": "application/json" });
-        if (resDlg.canceled || !resDlg.filePaths[0]) return res.end(JSON.stringify({ canceled: true }));
-        const full = resDlg.filePaths[0];
-        const base = path.basename(full, path.extname(full)).replace(/[_-]+/g, " ").trim();
-        return res.end(JSON.stringify({ canceled: false, path: full, title: base }));
+        return;
       }
       // API: GET /api/games
       if (req.method === 'GET' && pathname === '/api/games') {
