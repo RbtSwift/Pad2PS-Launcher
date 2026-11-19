@@ -185,6 +185,44 @@ jobs:
           path: all-artifacts
           merge-multiple: true
 
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: pages
+          fetch-depth: 0
+      - name: Gerar índices APT e publicar no Pages
+        run: |
+          sudo apt-get update && sudo apt-get install -y dpkg-dev
+          cd all-artifacts
+          VERSION="${GITHUB_REF_NAME#v}"
+          dpkg-scanpackages -m . /dev/null | sed 's#Filename: ./#Filename: #' > Packages
+          gzip -n -9 -c Packages > Packages.gz
+          PACKAGES_SHA=$(sha256sum Packages | cut -d' ' -f1)
+          PACKAGES_SIZE=$(wc -c < Packages)
+          GZIP_SHA=$(sha256sum Packages.gz | cut -d' ' -f1)
+          GZIP_SIZE=$(wc -c < Packages.gz)
+          cat > Release <<EOF
+          Origin: RbtSwift Pad2PS Launcher
+          Label: RbtSwift Pad2PS Launcher
+          Suite: stable
+          Version: ${VERSION}
+          Codename: stable
+          Date: $(date -Ru)
+          Architectures: amd64
+          Components: main
+          Description: Official Pad2PS Launcher APT repository
+          Acquire-By-Hash: no
+          SHA256:
+           ${PACKAGES_SHA} ${PACKAGES_SIZE} Packages
+           ${GZIP_SHA} ${GZIP_SIZE} Packages.gz
+          EOF
+          mkdir -p ../pages/apt
+          cp Packages Packages.gz Release ../pages/apt/
+          git -C ../pages config user.name "github-actions[bot]"
+          git -C ../pages config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C ../pages add apt/Packages apt/Packages.gz apt/Release
+          git -C ../pages commit -m "Update APT index for v${VERSION}"
+          git -C ../pages push origin gh-pages
       - name: Criar Release no GitHub
         uses: softprops/action-gh-release@v2
         with:
