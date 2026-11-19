@@ -1,0 +1,45 @@
+name: Discord release notification
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    name: Notify Discord
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send release embed
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          RELEASE_NAME: ${{ github.event.release.name || github.event.release.tag_name }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+          RELEASE_URL: ${{ github.event.release.html_url }}
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          body = (os.environ.get("RELEASE_BODY") or "").strip()[:3500]
+          embed = {
+              "title": f"🚀 Nova Atualização: {os.environ['RELEASE_NAME']}",
+              "description": body or "Nova versão oficial publicada!",
+              "url": os.environ["RELEASE_URL"],
+              "color": 5793266,
+              "footer": {"text": f"{os.environ['REPOSITORY_NAME']} • Pad2PS Oficial"},
+          }
+          payload = {"embeds": [embed]}
+          request = urllib.request.Request(
+              os.environ["DISCORD_WEBHOOK"],
+              data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+          with urllib.request.urlopen(request, timeout=20) as response:
+              print(f"Discord aceitou a notificação (HTTP {response.status}).")
+          PY
