@@ -35,7 +35,7 @@ export const FooterLegend: React.FC<FooterLegendProps> = ({
 }) => {
   return (
     <footer
-      className="relative z-20 flex items-center justify-between gap-4 px-6 sm:px-10 lg:px-16 py-4 border-t backdrop-blur-md text-sm font-bold tracking-wider uppercase text-[var(--text-secondary)] shrink-0"
+      className="android-footer-legend relative z-20 flex items-center justify-between gap-4 px-6 sm:px-10 lg:px-16 py-4 border-t backdrop-blur-md text-sm font-bold tracking-wider uppercase text-[var(--text-secondary)] shrink-0"
       style={{
         borderColor: 'var(--border-subtle)',
         backgroundColor: 'color-mix(in srgb, var(--bg-deep) 88%, transparent)',

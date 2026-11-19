@@ -121,9 +121,9 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
   };
 
   return (
-    <main className="relative z-10 flex-1 flex flex-col justify-center min-h-0 overflow-hidden">
+    <main className="android-game-carousel relative z-10 flex-1 flex flex-col justify-center min-h-0 overflow-hidden">
       {/* Cabeçalho do Palco: Título do Jogo acima da capa + Pílulas Maiores e Separadas de Plataforma */}
-      <div className="px-6 sm:px-10 pb-2 flex flex-wrap items-center justify-between gap-3 shrink-0">
+      <div className="android-game-carousel-header px-6 sm:px-10 pb-2 flex flex-wrap items-center justify-between gap-3 shrink-0">
         {selectedGame ? (
           <div aria-live="polite" className="min-w-0 max-w-2xl">
             <div className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold tracking-wider uppercase text-[var(--text-secondary)] mb-1">
@@ -193,7 +193,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
           <div
             role="tablist"
             aria-label="Filtros de plataforma"
-            className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-full py-1 shrink-0"
+            className="android-game-carousel-filters flex items-center gap-2 overflow-x-auto no-scrollbar max-w-full py-1 shrink-0"
           >
             {LIBRARY_PLATFORM_FILTERS.map((filter, idx) => {
               const isActive = platformFilter === filter;
@@ -279,12 +279,12 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
           </button>
         </div>
       ) : (
-        <div className="relative w-full flex items-center min-h-0">
+        <div className="android-game-carousel-content relative w-full flex items-center min-h-0">
           
 
           <div
             ref={trackRef}
-            className="w-full flex items-start gap-6 lg:gap-8 overflow-x-auto no-scrollbar pl-6 sm:pl-10 lg:pl-16 pr-[50vw] pt-2 pb-20 scroll-smooth"
+            className="android-game-carousel-track w-full flex items-start gap-6 lg:gap-8 overflow-x-auto no-scrollbar pl-6 sm:pl-10 lg:pl-16 pr-[50vw] pt-2 pb-20 scroll-smooth"
             role="listbox"
             aria-label="Carrossel de Jogos"
           >
@@ -318,7 +318,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
                         onSelectIndex(idx);
                       }
                     }}
-                    className={`theme-control relative block aspect-[2/3] overflow-hidden cursor-pointer focus:outline-none ${
+                    className={`android-game-cover theme-control relative block aspect-[2/3] overflow-hidden cursor-pointer focus:outline-none ${
                       isSelected ? 'accent-ring-active' : ''
                     }`}
                     style={{
@@ -359,7 +359,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
                       }}
                     >
                       <div
-                        className="w-full aspect-[2/3] scale-y-[-1] blur-[1px]"
+                        className="android-game-reflection w-full aspect-[2/3] scale-y-[-1] blur-[1px]"
                         style={{
                           height: 'clamp(130px, 31vh, 400px)',
                         }}
@@ -395,7 +395,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
                       onSelectIndex(games.length);
                     }
                   }}
-                  className={`theme-control relative aspect-[2/3] flex flex-col items-center justify-center gap-4 p-6 text-center cursor-pointer focus:outline-none ${
+                  className={`android-game-cover theme-control relative aspect-[2/3] flex flex-col items-center justify-center gap-4 p-6 text-center cursor-pointer focus:outline-none ${
                     isAddCardSelected && focusZone === 'games'
                       ? 'accent-ring-active'
                       : ''

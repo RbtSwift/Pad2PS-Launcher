@@ -105,7 +105,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     : DEFAULT_TRANSLATOR_URL;
 
   return (
-    <header className="relative z-20 flex items-center justify-between gap-4 px-6 sm:px-10 lg:px-16 py-4 lg:py-5 shrink-0">
+    <header className="android-top-bar relative z-20 flex items-center justify-between gap-4 px-6 sm:px-10 lg:px-16 py-4 lg:py-5 shrink-0">
       {/* Esquerda: Logo compacta Pad2PS LAUNCHER */}
       <button
         type="button"

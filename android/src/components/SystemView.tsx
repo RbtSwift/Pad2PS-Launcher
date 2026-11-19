@@ -829,7 +829,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
     const safeTranslatorUrl = getSafeUrl(settings.translatorUrl);
 
     return (
-      <main className="relative z-10 flex-1 min-h-0 px-6 sm:px-10 lg:px-16 py-2 flex flex-col overflow-hidden">
+      <main className="android-system-main relative z-10 flex-1 min-h-0 px-6 sm:px-10 lg:px-16 py-2 flex flex-col overflow-hidden">
         <input
           ref={fileInputRef}
           type="file"
@@ -856,11 +856,11 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
         )}
 
         {/* Layout 2 Colunas Amplo Estilo Console */}
-        <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-6 lg:gap-8">
+        <div className="android-system-layout flex-1 min-h-0 flex flex-col md:flex-row gap-6 lg:gap-8">
           {/* Coluna Esquerda (w-80): Lista Vertical de Categorias */}
           <aside
             aria-label="Categorias do Sistema"
-            className="w-full md:w-72 lg:w-80 shrink-0 flex flex-row md:flex-col gap-2.5 overflow-x-auto md:overflow-y-auto no-scrollbar py-1"
+            className="android-system-categories w-full md:w-72 lg:w-80 shrink-0 flex flex-row md:flex-col gap-2.5 overflow-x-auto md:overflow-y-auto no-scrollbar py-1"
           >
             {CATEGORIES.map((cat, idx) => {
               const Icon = cat.icon;
@@ -924,7 +924,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           {/* Coluna Direita: Painel Amplo e Legível */}
           <section
             aria-live="polite"
-            className="theme-surface flex-1 min-w-0 min-h-0 p-4 sm:p-6 lg:p-8 pb-24 overflow-y-auto no-scrollbar backdrop-blur-xl"
+            className="android-system-panel theme-surface flex-1 min-w-0 min-h-0 p-4 sm:p-6 lg:p-8 pb-24 overflow-y-auto no-scrollbar backdrop-blur-xl"
             style={{
               backgroundColor:
                 'color-mix(in srgb, var(--bg-surface) 84%, transparent)',

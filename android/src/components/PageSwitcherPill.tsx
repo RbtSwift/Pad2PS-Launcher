@@ -27,7 +27,7 @@ export const PageSwitcherPill: React.FC<PageSwitcherPillProps> = ({
   onNextPage,
 }) => {
   return (
-    <div className="relative z-20 flex items-center justify-center py-2 shrink-0 pointer-events-none">
+    <div className="android-page-switcher relative z-20 flex items-center justify-center py-2 shrink-0 pointer-events-none">
       <nav
         aria-label="Navegação Principal"
         className="pointer-events-auto inline-flex items-center gap-2 sm:gap-3 px-3 py-1.5 rounded-full border backdrop-blur-xl transition-all"

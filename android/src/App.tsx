@@ -1281,7 +1281,7 @@ export default function App() {
   return (
     <ControllerLayoutProvider layout={resolvedLayout}>
       <div
-        className="relative h-screen w-screen overflow-hidden flex flex-col select-none transition-colors duration-500"
+        className="android-app-shell relative h-screen w-screen overflow-hidden flex flex-col select-none transition-colors duration-500"
         style={{
           backgroundColor: 'var(--bg-deep)',
           color: 'var(--text-primary)',

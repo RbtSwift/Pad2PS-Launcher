@@ -394,3 +394,100 @@ html.pad2ps-cursor-hidden,
 html.pad2ps-cursor-hidden * {
   cursor: none !important;
 }
+
+/* Compact touch layout for Android phones held in landscape. */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  .android-app-shell {
+    height: 100dvh;
+    min-height: 0;
+    width: 100vw;
+  }
+
+  .android-top-bar {
+    gap: 0.65rem;
+    padding: 0.35rem 1rem;
+  }
+
+  .android-page-switcher {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .android-page-switcher nav button[aria-current='page'] {
+    width: 2.6rem;
+    height: 2.35rem;
+  }
+
+  .android-footer-legend {
+    gap: 0.5rem;
+    padding: 0.45rem 1rem;
+    font-size: 0.7rem;
+  }
+
+  .android-footer-legend > div:last-child {
+    gap: 0.75rem;
+  }
+
+  .android-game-carousel {
+    justify-content: flex-start;
+    padding-top: 0.2rem;
+  }
+
+  .android-game-carousel-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0 1rem 0.5rem;
+  }
+
+  .android-game-carousel-filters {
+    align-self: flex-end;
+    max-width: 100%;
+  }
+
+  .android-game-carousel-content {
+    flex: 1;
+    align-items: center;
+  }
+
+  .android-game-carousel-track {
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 22vw 1.25rem 1rem;
+  }
+
+  .android-game-cover {
+    height: clamp(100px, 28vh, 145px) !important;
+  }
+
+  .android-game-reflection {
+    display: none;
+  }
+
+  .android-system-main {
+    padding-right: 0.75rem;
+    padding-left: 0.75rem;
+  }
+
+  .android-system-layout {
+    gap: 0.5rem;
+  }
+
+  .android-system-categories {
+    width: 15rem;
+    flex-basis: 15rem;
+  }
+
+  .android-system-panel {
+    padding: 0.75rem 1rem 4.5rem;
+    touch-action: pan-y;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .android-system-panel::-webkit-scrollbar {
+    display: block;
+    width: 3px;
+  }
+}
