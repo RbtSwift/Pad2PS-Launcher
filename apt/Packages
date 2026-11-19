@@ -6,10 +6,8 @@ Installed-Size: 435383
 Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0
 Recommends: libappindicator3-1
 Filename: Pad2PS-Launcher-1.0.4-amd64.deb
-Size: 135444752
-MD5sum: ed8e6fe8cd4452cc625a4633a5aa64f5
-SHA1: 5c1734f2d3d441edde91244af82259e5d2189491
-SHA256: 792ae96ce3fdbe0e28ac3ae8197dd292ec80416deead9cad97cd2d56593bd2a6
+Size: 129288048
+SHA256: 227f3287c19afd4e0146e7bc4fb9e2b9d5879bbccbc423cc04d23da20d545071
 Section: default
 Priority: optional
 Homepage: https://github.com/RbtSwift/Pad2PS-Launcher

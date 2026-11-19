@@ -9,5 +9,5 @@ Components: main
 Description: Official RbtSwift Pad2PS Launcher APT repository
 Acquire-By-Hash: no
 SHA256:
- a3559b2a03de3112c66f581263f579122ba698555471c0a337d94c8312ad3d7a 915 Packages
- a68ae9467440364d7f4e60e60570f15598830eb793b25c9ad534c1b9d791a00f 626 Packages.gz
+ b01e4163f1060f8b1e7fd431cca20ddf599277f88d1b3d024c9cb8d94c3e3a85 827 Packages
+ 373e2552fe42a29026da7f6f604ddf12d46fc9fedc3480308efdfc1582c4db24 566 Packages.gz
