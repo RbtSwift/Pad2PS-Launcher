@@ -15,8 +15,15 @@ export interface AndroidScannedGame {
   source?: string;
 }
 
+export interface AndroidLaunchableApp {
+  title: string;
+  packageName: string;
+}
+
 export interface GameScannerPlugin {
   getInstalledGames(): Promise<{ games: AndroidScannedGame[]; romFolderUri: string }>;
+  getLaunchableApps(): Promise<{ apps: AndroidLaunchableApp[] }>;
+  getAppIcon(options: { packageName: string }): Promise<{ iconBase64: string }>;
   pickRomFolder(): Promise<{ uri: string; roms: AndroidScannedGame[]; count: number }>;
   scanRomFolder(): Promise<{ uri: string; roms: AndroidScannedGame[]; count: number }>;
   clearRomFolder(): Promise<{ ok: boolean }>;
@@ -28,6 +35,18 @@ export const GameScanner = registerPlugin<GameScannerPlugin>('GameScanner');
 
 export function isAndroidNative(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+}
+
+export async function listAndroidLaunchableApps(): Promise<AndroidLaunchableApp[]> {
+  if (!isAndroidNative()) return [];
+  const result = await GameScanner.getLaunchableApps();
+  return result.apps || [];
+}
+
+export async function getAndroidAppIcon(packageName: string): Promise<string> {
+  if (!isAndroidNative()) return '';
+  const result = await GameScanner.getAppIcon({ packageName });
+  return result.iconBase64 || '';
 }
 
 function normalizeAndroidGames(raw: AndroidScannedGame[]) {

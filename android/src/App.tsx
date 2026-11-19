@@ -269,6 +269,8 @@ function matchesPlatformFilter(
   switch (filter) {
     case 'Todos':
       return true;
+    case 'Android':
+      return game.platformLabel === 'Android' || game.genre === 'Jogo Android';
     case 'Steam':
       return game.platform === 'Steam';
     case 'Epic':
@@ -317,7 +319,7 @@ export default function App() {
 
   useEffect(() => {
     let isMounted = true;
-    checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.6')
+    checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.8')
       .then((res) => {
         if (isMounted && res.hasUpdate) {
           setUpdateInfo(res);
@@ -558,7 +560,26 @@ export default function App() {
             lastPlayed: item.lastPlayed ? String(item.lastPlayed) : undefined,
           }));
 
-        setGames(sanitized);
+        let savedAndroidSelections: Game[] = [];
+        try {
+          const storedGames = JSON.parse(localStorage.getItem(GAMES_STORAGE_KEY) || '[]');
+          if (Array.isArray(storedGames)) {
+            savedAndroidSelections = storedGames.filter(
+              (game): game is Game => Boolean(game) && typeof game === 'object' &&
+                typeof game.id === 'string' && game.id.startsWith('android-picked-app:') &&
+                typeof game.command === 'string' && Boolean(game.command)
+            );
+          }
+        } catch {
+          // Ignore invalid local library data and keep the Android scan results.
+        }
+        const selectedPackages = new Set(savedAndroidSelections.map((game) => game.command));
+        const mergedGames = [
+          ...sanitized.filter((game) => !selectedPackages.has(game.command)),
+          ...savedAndroidSelections,
+        ];
+
+        setGames(mergedGames);
         setActivePage('library');
         setPlatformFilter('Todos');
         setFocusedFilterIndex(0);
@@ -567,8 +588,8 @@ export default function App() {
 
         return {
           success: true,
-          count: sanitized.length,
-          message: `${sanitized.length} jogos carregados no Pad2PS Launcher.`,
+          count: mergedGames.length,
+          message: `${mergedGames.length} jogos carregados no Pad2PS Launcher.`,
         };
       } catch (err) {
         return {
@@ -728,9 +749,19 @@ export default function App() {
     (saved: Game) => {
       soundEngine.playConfirm();
       setGames((prev) => {
-        const exists = prev.some((g) => g.id === saved.id);
-        if (exists) {
-          return prev.map((g) => (g.id === saved.id ? saved : g));
+        const existingAndroidApp = saved.platformLabel === 'Android'
+          ? prev.find((g) => g.platformLabel === 'Android' && g.command === saved.command)
+          : undefined;
+        const existing = prev.find((g) => g.id === saved.id) || existingAndroidApp;
+        if (existing) {
+          const updated = {
+            ...saved,
+            id: existing.id,
+            hoursPlayed: existing.hoursPlayed,
+            lastPlayed: existing.lastPlayed,
+            favorite: saved.favorite || existing.favorite,
+          };
+          return prev.map((g) => (g.id === existing.id ? updated : g));
         }
         return [saved, ...prev];
       });

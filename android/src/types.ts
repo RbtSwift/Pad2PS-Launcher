@@ -13,6 +13,7 @@ export type LauncherPage = 'favorites' | 'library' | 'system';
 
 export type LibraryPlatformFilter =
   | 'Todos'
+  | 'Android'
   | 'Steam'
   | 'Epic'
   | 'Heroic'

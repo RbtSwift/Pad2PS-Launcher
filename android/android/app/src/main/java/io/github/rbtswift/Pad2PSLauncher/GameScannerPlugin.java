@@ -148,6 +148,54 @@ public class GameScannerPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getLaunchableApps(PluginCall call) {
+        Context ctx = getContext();
+        PackageManager pm = ctx.getPackageManager();
+        String selfPkg = ctx.getPackageName();
+        List<JSObject> apps = new ArrayList<>();
+
+        for (ApplicationInfo app : pm.getInstalledApplications(PackageManager.GET_META_DATA)) {
+            String pkg = app.packageName;
+            if (pkg.equals(selfPkg) || pm.getLaunchIntentForPackage(pkg) == null) continue;
+
+            JSObject item = new JSObject();
+            item.put("title", pm.getApplicationLabel(app).toString());
+            item.put("packageName", pkg);
+            apps.add(item);
+        }
+
+        Collections.sort(apps, (left, right) -> {
+            String leftTitle = left.optString("title", "");
+            String rightTitle = right.optString("title", "");
+            return leftTitle.compareToIgnoreCase(rightTitle);
+        });
+
+        JSArray resultApps = new JSArray();
+        for (JSObject app : apps) resultApps.put(app);
+
+        JSObject result = new JSObject();
+        result.put("apps", resultApps);
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void getAppIcon(PluginCall call) {
+        String packageName = call.getString("packageName", "");
+        if (packageName == null || packageName.trim().isEmpty()) {
+            call.reject("Pacote do aplicativo inválido.");
+            return;
+        }
+
+        try {
+            PackageManager pm = getContext().getPackageManager();
+            String icon = drawableToBase64(pm.getApplicationIcon(packageName));
+            call.resolve(new JSObject().put("iconBase64", icon));
+        } catch (Exception e) {
+            call.reject("Não foi possível carregar o ícone do aplicativo.", e);
+        }
+    }
+
+    @PluginMethod
     public void pickRomFolder(PluginCall call) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);

@@ -1,6 +1,8 @@
 import React, { RefObject, useRef, useState } from "react";
 import { ChevronDown, FolderSearch, Gamepad2, ImagePlus, Search, Upload, X } from "lucide-react";
 import { Game, Platform } from "../types";
+import { getAndroidAppIcon, isAndroidNative, listAndroidLaunchableApps } from "../utils/androidBridge";
+import type { AndroidLaunchableApp } from "../utils/androidBridge";
 import { resizeImageFileTo600x900 } from "../utils/coverSearch";
 import { CancelButtonIcon } from "./ControllerIcons";
 import { CoverFinderHandle, CoverFinderModal } from "./CoverFinderModal";
@@ -22,6 +24,7 @@ export const GameFormModal: React.FC<GameFormModalProps> = ({
   initialGame, coverFinderRef, isCoverFinderOpen: controlledFinderOpen, onCoverFinderOpenChange, onGoToApiSettings, onSave, onClose,
 }) => {
   const isEditing = Boolean(initialGame);
+  const isAndroid = isAndroidNative();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [title, setTitle] = useState(initialGame?.title ?? "");
   const [platform, setPlatform] = useState<Platform>(initialGame?.platform ?? "Outro");
@@ -36,9 +39,45 @@ export const GameFormModal: React.FC<GameFormModalProps> = ({
   const [errorMsg, setErrorMsg] = useState("");
   const [resizingCover, setResizingCover] = useState(false);
   const [internalFinderOpen, setInternalFinderOpen] = useState(false);
+  const [androidAppPickerOpen, setAndroidAppPickerOpen] = useState(false);
+  const [androidApps, setAndroidApps] = useState<AndroidLaunchableApp[]>([]);
+  const [androidAppsLoading, setAndroidAppsLoading] = useState(false);
+  const [androidAppSearch, setAndroidAppSearch] = useState("");
+  const [androidAppPickerError, setAndroidAppPickerError] = useState("");
 
   const showCoverFinder = controlledFinderOpen ?? internalFinderOpen;
   const setShowCoverFinder = (open: boolean) => { setInternalFinderOpen(open); onCoverFinderOpenChange?.(open); };
+
+  const handleOpenAndroidAppPicker = async () => {
+    setAndroidAppPickerOpen(true);
+    setAndroidAppSearch("");
+    setAndroidAppsLoading(true);
+    setAndroidAppPickerError("");
+    setErrorMsg("");
+    try {
+      setAndroidApps(await listAndroidLaunchableApps());
+    } catch {
+      setAndroidAppPickerError("Não foi possível carregar os apps instalados neste aparelho.");
+    } finally {
+      setAndroidAppsLoading(false);
+    }
+  };
+
+  const handleSelectAndroidApp = async (app: AndroidLaunchableApp) => {
+    setTitle(app.title);
+    setCommand(app.packageName);
+    setPlatform("Outro");
+    setPlatformLabel("Android");
+    setGenre("Jogo Android");
+    setErrorMsg("");
+    setAndroidAppPickerOpen(false);
+    try {
+      const icon = await getAndroidAppIcon(app.packageName);
+      if (icon) setCoverUrl(icon);
+    } catch {
+      // Mantém o app selecionado mesmo se o Android não fornecer seu ícone.
+    }
+  };
 
   const handlePickGameFile = async () => {
     try {
@@ -72,16 +111,20 @@ export const GameFormModal: React.FC<GameFormModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) { setErrorMsg("Informe o nome do jogo."); return; }
-    if (!command.trim()) { setShowAdvanced(true); setErrorMsg("Selecione o arquivo do jogo ou preencha o caminho em Configurações Avançadas."); return; }
-    const id = initialGame?.id ?? `${title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`;
+    if (!command.trim()) {
+      if (!isAndroid) setShowAdvanced(true);
+      setErrorMsg(isAndroid ? "Selecione um app instalado no aparelho." : "Selecione o arquivo do jogo ou preencha o caminho em Configurações Avançadas.");
+      return;
+    }
+    const id = initialGame?.id ?? (isAndroid ? `android-picked-app:${command.trim()}` : `${title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`);
     const trimmedConsole = consoleSystem.trim();
     onSave({
       id, title: title.trim(), platform,
-      platformLabel: platformLabel.trim() || (platform === "Emulador" && trimmedConsole ? trimmedConsole : platform === "Outro" ? "PC" : platform),
+      platformLabel: isAndroid ? "Android" : platformLabel.trim() || (platform === "Emulador" && trimmedConsole ? trimmedConsole : platform === "Outro" ? "PC" : platform),
       consoleSystem: trimmedConsole || undefined,
       coverUrl: coverUrl.trim(), command: command.trim(),
       hoursPlayed: Number(Math.max(0, Number.parseFloat(hoursPlayed) || 0).toFixed(1)),
-      favorite, genre: genre.trim() || undefined, lastPlayed: initialGame?.lastPlayed ?? "Recente",
+      favorite, genre: isAndroid ? "Jogo Android" : genre.trim() || undefined, lastPlayed: initialGame?.lastPlayed ?? "Recente",
     });
   };
 
@@ -108,10 +151,20 @@ export const GameFormModal: React.FC<GameFormModalProps> = ({
             </div>
             <div className="flex flex-col gap-3.5">
               {errorMsg && <div className="theme-control px-3 py-2 bg-rose-500/15 border border-rose-500/40 text-xs text-rose-200">{errorMsg}</div>}
-              <button type="button" onClick={handlePickGameFile} className="theme-control w-full flex items-center justify-center gap-2.5 px-4 py-3 border-2 border-dashed text-sm font-semibold text-[var(--text-primary)] hover:border-[var(--accent)] transition-colors cursor-pointer" style={{ backgroundColor: "var(--bg-deep)", borderColor: command ? "var(--accent)" : "var(--border-subtle)" }}>
-                <FolderSearch className="w-4 h-4" style={{ color: "var(--accent)" }} />
-                <span>{command ? "Arquivo Selecionado (Trocar)" : "1. Selecionar Arquivo ou Executável do Jogo"}</span>
-              </button>
+              {isAndroid ? (
+                <div className="flex flex-col gap-2">
+                  <button type="button" onClick={handleOpenAndroidAppPicker} className="theme-control w-full flex items-center justify-center gap-2.5 px-4 py-3 border-2 border-dashed text-sm font-semibold text-[var(--text-primary)] hover:border-[var(--accent)] transition-colors cursor-pointer" style={{ backgroundColor: "var(--bg-deep)", borderColor: command ? "var(--accent)" : "var(--border-subtle)" }}>
+                    <Gamepad2 className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                    <span>{command ? "Trocar app selecionado" : "1. Selecionar app instalado"}</span>
+                  </button>
+                  <p className="text-[11px] text-[var(--text-secondary)]">Escolha um app instalado no aparelho para adicioná-lo à biblioteca.</p>
+                </div>
+              ) : (
+                <button type="button" onClick={handlePickGameFile} className="theme-control w-full flex items-center justify-center gap-2.5 px-4 py-3 border-2 border-dashed text-sm font-semibold text-[var(--text-primary)] hover:border-[var(--accent)] transition-colors cursor-pointer" style={{ backgroundColor: "var(--bg-deep)", borderColor: command ? "var(--accent)" : "var(--border-subtle)" }}>
+                  <FolderSearch className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                  <span>{command ? "Arquivo Selecionado (Trocar)" : "1. Selecionar Arquivo ou Executável do Jogo"}</span>
+                </button>
+              )}
               <div>
                 <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">2. Nome do Jogo *</label>
                 <input type="text" value={title} onChange={(e) => { setTitle(e.target.value); setErrorMsg(""); }} placeholder="Ex: God of War II" className="theme-control w-full px-3.5 py-2 border text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-subtle)" }} />
@@ -119,9 +172,13 @@ export const GameFormModal: React.FC<GameFormModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">3. Categoria</label>
-                  <select value={platform} onChange={(e) => setPlatform(e.target.value as Platform)} className="theme-control w-full px-3 py-2 border text-sm text-[var(--text-primary)] focus:outline-none" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-subtle)" }}>
-                    {PLATFORMS.map((p) => <option key={p} value={p}>{p === "Outro" ? "Jogo PC / Executável" : p}</option>)}
-                  </select>
+                  {isAndroid ? (
+                    <div className="theme-control w-full px-3 py-2 border text-sm text-[var(--text-primary)]" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-subtle)" }}>App Android</div>
+                  ) : (
+                    <select value={platform} onChange={(e) => setPlatform(e.target.value as Platform)} className="theme-control w-full px-3 py-2 border text-sm text-[var(--text-primary)] focus:outline-none" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-subtle)" }}>
+                      {PLATFORMS.map((p) => <option key={p} value={p}>{p === "Outro" ? "Jogo PC / Executável" : p}</option>)}
+                    </select>
+                  )}
                 </div>
                 <div className="flex items-end pb-1.5">
                   <label className="inline-flex items-center gap-2 text-sm text-[var(--text-primary)] cursor-pointer select-none">
@@ -130,11 +187,11 @@ export const GameFormModal: React.FC<GameFormModalProps> = ({
                   </label>
                 </div>
               </div>
-              <button type="button" onClick={() => setShowAdvanced((v) => !v)} className="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-white/5 cursor-pointer">
+              {!isAndroid && <button type="button" onClick={() => setShowAdvanced((v) => !v)} className="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-white/5 cursor-pointer">
                 <span>Configurações Avançadas (caminho, console, horas)</span>
                 <ChevronDown className={`w-4 h-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`} />
-              </button>
-              {showAdvanced && (
+              </button>}
+              {showAdvanced && !isAndroid && (
                 <div className="flex flex-col gap-3 p-3 rounded-xl border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-subtle)" }}>
                   <div>
                     <label className="block text-[11px] text-[var(--text-secondary)] mb-1">Caminho ou Comando *</label>
@@ -163,6 +220,34 @@ export const GameFormModal: React.FC<GameFormModalProps> = ({
           </form>
         </div>
       </div>
+      {androidAppPickerOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-md p-4" role="dialog" aria-modal="true" aria-label="Selecionar app instalado" onClick={(event) => { if (event.target === event.currentTarget) setAndroidAppPickerOpen(false); }}>
+          <div className="theme-surface w-full max-w-xl max-h-[85vh] flex flex-col p-5 sm:p-6">
+            <div className="flex items-center justify-between gap-4 pb-3 mb-4 border-b" style={{ borderColor: "var(--border-subtle)" }}>
+              <div>
+                <h3 className="font-display text-lg font-bold text-[var(--text-primary)]">Escolher app instalado</h3>
+                <p className="text-xs text-[var(--text-secondary)] mt-1">Selecione o jogo que deseja adicionar.</p>
+              </div>
+              <button type="button" onClick={() => setAndroidAppPickerOpen(false)} className="theme-control p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer" aria-label="Fechar seletor"><X className="w-5 h-5" /></button>
+            </div>
+            <label className="relative block mb-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-secondary)]" />
+              <input autoFocus type="search" value={androidAppSearch} onChange={(event) => setAndroidAppSearch(event.target.value)} placeholder="Buscar pelo nome do app" className="theme-control w-full pl-10 pr-3 py-2.5 border text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-subtle)" }} />
+            </label>
+            <div className="min-h-0 overflow-y-auto flex flex-col gap-2 pr-1" style={{ touchAction: "pan-y" }}>
+              {androidAppsLoading ? <p className="py-8 text-center text-sm text-[var(--text-secondary)]">Carregando apps instalados…</p> : androidApps.filter((app) => `${app.title} ${app.packageName}`.toLocaleLowerCase().includes(androidAppSearch.trim().toLocaleLowerCase())).map((app) => (
+                <button key={app.packageName} type="button" onClick={() => void handleSelectAndroidApp(app)} className="theme-control flex items-center gap-3 p-3 text-left border text-[var(--text-primary)] hover:border-[var(--accent)] cursor-pointer" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-subtle)" }}>
+                  <span className="w-10 h-10 shrink-0 flex items-center justify-center rounded-xl text-[var(--accent)] bg-white/5"><Gamepad2 className="w-5 h-5" /></span>
+                  <span className="min-w-0 flex-1"><span className="block font-semibold truncate">{app.title}</span><span className="block text-[10px] text-[var(--text-secondary)] font-mono-tech truncate">{app.packageName}</span></span>
+                </button>
+              ))}
+              {!androidAppsLoading && androidAppPickerError && <p className="py-8 text-center text-sm text-rose-300">{androidAppPickerError}</p>}
+              {!androidAppsLoading && !androidAppPickerError && androidApps.length === 0 && <p className="py-8 text-center text-sm text-[var(--text-secondary)]">Nenhum app com opção de abertura foi encontrado.</p>}
+              {!androidAppsLoading && androidApps.length > 0 && !androidApps.some((app) => `${app.title} ${app.packageName}`.toLocaleLowerCase().includes(androidAppSearch.trim().toLocaleLowerCase())) && <p className="py-8 text-center text-sm text-[var(--text-secondary)]">Nenhum app corresponde à busca.</p>}
+            </div>
+          </div>
+        </div>
+      )}
       {showCoverFinder && <CoverFinderModal ref={coverFinderRef} initialTitle={title} initialCommand={command} onSelectCover={(u) => { setCoverUrl(u); setShowCoverFinder(false); }} onGoToApiSettings={onGoToApiSettings ? () => { setShowCoverFinder(false); onGoToApiSettings(); } : undefined} onClose={() => setShowCoverFinder(false)} />}
     </>
   );
