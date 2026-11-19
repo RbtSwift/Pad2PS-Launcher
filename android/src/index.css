@@ -448,6 +448,7 @@ html.pad2ps-cursor-hidden * {
     scroll-padding-inline: 0.75rem;
   }
   .android-game-carousel-track > div { scroll-margin-inline: 0.75rem; }
+  .android-game-carousel-track > div { transform: none !important; translate: none !important; scale: none !important; }
   .android-game-cover { height: clamp(118px, 52vh, 218px) !important; }
   .android-game-cover img { object-fit: cover; }
   .android-game-reflection { display: none; }
