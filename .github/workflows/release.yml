@@ -227,4 +227,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: all-artifacts/*
+          body_path: RELEASE_NOTES.md
           generate_release_notes: false
