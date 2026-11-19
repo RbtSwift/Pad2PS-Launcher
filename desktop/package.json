@@ -1,7 +1,8 @@
 {
   "name": "pad2ps-launcher",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.4",
+  "license": "MIT",
   "type": "module",
   "main": "electron-main.cjs",
   "description": "Central de jogos estilo console com navegação completa por controle",
@@ -19,6 +20,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
+    "pack:linux": "npm run build && electron-builder --linux AppImage --publish never",
+    "pack:win": "npm run build && electron-builder --win nsis portable --publish never",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
@@ -68,6 +71,12 @@
       "icon": "icon.png",
       "target": [
         "AppImage"
+      ]
+    },
+    "deb": {
+      "fpm": [
+        "io.github.rbtswift.Pad2PSLauncher.metainfo.xml=/usr/share/metainfo/io.github.rbtswift.Pad2PSLauncher.metainfo.xml",
+        "pad2ps-launcher.list=/etc/apt/sources.list.d/pad2ps-launcher.list"
       ]
     },
     "appImage": {

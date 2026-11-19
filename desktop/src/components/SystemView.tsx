@@ -24,6 +24,7 @@ import {
   Palette,
   Plus,
   Power,
+  RefreshCw,
   RotateCcw,
   Save,
   SlidersHorizontal,
@@ -33,6 +34,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
+import { checkForAppUpdate, type UpdateCheckResult } from '../utils/updateChecker';
 import { DEFAULT_TRANSLATOR_URL, THEMES } from '../data/defaultGames';
 import {
   ControllerLayout,
@@ -99,6 +101,7 @@ interface SystemViewProps {
   onResetDefaultGames: () => void;
   onSleepMode: () => void;
   onRestart: () => void;
+  onOpenUpdateModal?: (info: UpdateCheckResult) => void;
 }
 
 const CATEGORIES: {
@@ -278,6 +281,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
       onResetDefaultGames,
       onSleepMode,
       onRestart,
+      onOpenUpdateModal,
     },
     ref
   ) => {
@@ -285,6 +289,8 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
     const customImageInputRef = useRef<HTMLInputElement | null>(null);
     const contentRefs = useRef<(HTMLElement | null)[]>([]);
     const categoryRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+    const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
 
     const [activeCategory, setActiveCategory] =
       useState<SystemCategory>(initialCategory);
@@ -399,8 +405,31 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
             IDLE_TIMEOUT_OPTIONS.length +
             SCREENSAVER_MODE_OPTIONS.length +
             customControlsCount +
-            5
+            6
           );
+      }
+    };
+
+    const handleCheckUpdates = async () => {
+      try {
+        setIsCheckingUpdates(true);
+        soundEngine.playMove();
+        showToast('Verificando atualizações no GitHub...');
+        const res = await checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.4');
+        if (res.hasUpdate && onOpenUpdateModal) {
+          soundEngine.playConfirm();
+          onOpenUpdateModal(res);
+        } else if (res.error) {
+          soundEngine.playCancel();
+          showToast('Não foi possível verificar atualizações. Sem conexão.');
+        } else {
+          soundEngine.playConfirm();
+          showToast('O Pad2PS Launcher está atualizado (v1.0.4)!');
+        }
+      } catch {
+        showToast('Erro ao verificar atualizações.');
+      } finally {
+        setIsCheckingUpdates(false);
       }
     };
 
@@ -507,6 +536,22 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
       };
       reader.readAsText(file);
       e.target.value = '';
+    };
+
+    const handleQuitApp = () => {
+      soundEngine.playCancel();
+      const desktop = (window as unknown as {
+        pad2psDesktop?: { quitApp?: () => void };
+      }).pad2psDesktop;
+      if (desktop?.quitApp) {
+        desktop.quitApp();
+      } else {
+        fetch('/api/quit', { method: 'POST' }).catch(() => {
+          if (window.confirm('Sair do Pad2PS Launcher?')) {
+            window.close();
+          }
+        });
+      }
     };
 
     const activateContentItem = (idx: number) => {
@@ -655,18 +700,12 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           soundEngine.playConfirm();
           handleDownloadLogo('icon');
         } else if (idx === utilitiesStart + 3) {
+          handleCheckUpdates();
+        } else if (idx === utilitiesStart + 4) {
           soundEngine.playConfirm();
           onRestart();
-        } else if (idx === utilitiesStart + 4) {
-          soundEngine.playCancel();
-          const desktop = (window as unknown as {
-            pad2psDesktop?: { quitApp?: () => void };
-          }).pad2psDesktop;
-          if (desktop?.quitApp) {
-            desktop.quitApp();
-          } else {
-            window.close();
-          }
+        } else if (idx === utilitiesStart + 5) {
+          handleQuitApp();
         }
       }
     };
@@ -2426,8 +2465,9 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                     customControlsCount;
                   const downloadIdx = autostartIdx + 1;
                   const downloadIconIdx = autostartIdx + 2;
-                  const restartIdx = autostartIdx + 3;
-                  const quitIdx = autostartIdx + 4;
+                  const checkUpdatesIdx = autostartIdx + 3;
+                  const restartIdx = autostartIdx + 4;
+                  const quitIdx = autostartIdx + 5;
 
                   return (
                     <div
@@ -2616,6 +2656,68 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                         </div>
                       </button>
 
+                      {/* Verificar Atualizações */}
+                      <button
+                        ref={(el) => {
+                          contentRefs.current[checkUpdatesIdx] = el;
+                        }}
+                        type="button"
+                        disabled={isCheckingUpdates}
+                        onMouseEnter={() => {
+                          setFocusPane('content');
+                          setContentFocusIndex(checkUpdatesIdx);
+                        }}
+                        onClick={handleCheckUpdates}
+                        className="theme-control w-full flex items-center justify-between gap-4 p-4 sm:p-5 text-left transition-all cursor-pointer"
+                        style={{
+                          backgroundColor:
+                            focusPane === 'content' &&
+                            contentFocusIndex === checkUpdatesIdx
+                              ? 'rgba(var(--accent-rgb), 0.14)'
+                              : 'var(--bg-deep)',
+                          border:
+                            focusPane === 'content' &&
+                            contentFocusIndex === checkUpdatesIdx
+                              ? '2px solid var(--accent)'
+                              : '1px solid var(--border-subtle)',
+                          boxShadow:
+                            focusPane === 'content' &&
+                            contentFocusIndex === checkUpdatesIdx
+                              ? 'var(--accent-glow)'
+                              : undefined,
+                        }}
+                      >
+                        <div className="flex items-center gap-4 min-w-0">
+                          <div
+                            className="theme-control w-12 h-12 border flex items-center justify-center shrink-0"
+                            style={{
+                              backgroundColor: 'var(--bg-surface)',
+                              borderColor: 'var(--border-subtle)',
+                              color: 'var(--accent)',
+                            }}
+                          >
+                            <RefreshCw className={`w-6 h-6 ${isCheckingUpdates ? 'animate-spin' : ''}`} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-display text-base lg:text-lg font-bold text-[var(--text-primary)]">
+                              Verificar Atualizações
+                            </p>
+                            <p className="text-sm lg:text-base text-[var(--text-secondary)] mt-0.5 leading-relaxed">
+                              Versão v1.0.4 instalada. Consulta releases oficiais no GitHub e oferece downloads compatíveis.
+                            </p>
+                          </div>
+                        </div>
+
+                        <span
+                          className="theme-control px-4 py-2 text-sm font-bold shrink-0 text-white"
+                          style={{
+                            backgroundColor: 'var(--accent)',
+                          }}
+                        >
+                          {isCheckingUpdates ? 'Verificando...' : 'Checar'}
+                        </span>
+                      </button>
+
                       {/* Reiniciar Launcher */}
                       <button
                         ref={(el) => {
@@ -2676,17 +2778,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                           setFocusPane('content');
                           setContentFocusIndex(quitIdx);
                         }}
-                        onClick={() => {
-                          soundEngine.playCancel();
-                          const desktop = (window as unknown as {
-                            pad2psDesktop?: { quitApp?: () => void };
-                          }).pad2psDesktop;
-                          if (desktop?.quitApp) {
-                            desktop.quitApp();
-                          } else {
-                            window.close();
-                          }
-                        }}
+                        onClick={handleQuitApp}
                         className="theme-control w-full flex items-center gap-4 p-4 sm:p-5 text-left transition-all cursor-pointer"
                         style={{
                           backgroundColor:

@@ -1,12 +1,13 @@
 {
   "name": "pad2ps-launcher-workspace",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "scripts": {
     "postinstall": "npm --prefix desktop install --no-audit --no-fund",
     "dev": "npm --prefix desktop run dev",
     "build": "npm --prefix desktop run build",
     "preview": "npm --prefix desktop run preview",
     "lint": "npm --prefix desktop run lint"
-  }
+  },
+  "license": "MIT"
 }

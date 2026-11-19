@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, shell } = require('electron');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -769,16 +769,26 @@ function startHttpServer() {
             { name: "Todos os Arquivos", extensions: ["*"] }
           ]
         }).then((resDlg) => {
-          res.writeHead(200, { "Content-Type": "application/json" });
+          res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
           if (resDlg.canceled || !resDlg.filePaths[0]) return res.end(JSON.stringify({ canceled: true }));
           const full = resDlg.filePaths[0];
           const base = path.basename(full, path.extname(full)).replace(/[_-]+/g, " ").trim();
           return res.end(JSON.stringify({ canceled: false, path: full, title: base }));
         }).catch(() => {
-          res.writeHead(200, { "Content-Type": "application/json" });
+          res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
           res.end(JSON.stringify({ canceled: true }));
         });
         return;
+      }
+
+      // API: POST /api/quit
+      if (req.method === 'POST' && pathname === '/api/quit') {
+        if (mainWindow) {
+          mainWindow.close();
+        } else {
+          app.quit();
+        }
+        return sendJson({ ok: true });
       }
       // API: GET /api/games
       if (req.method === 'GET' && pathname === '/api/games') {
@@ -862,7 +872,7 @@ function startHttpServer() {
       }
 
       if (!fs.existsSync(filePath)) {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
         return res.end('Arquivo não encontrado');
       }
 
@@ -870,15 +880,15 @@ function startHttpServer() {
       const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
       try {
-        const stat = fs.statSync(filePath);
+        const data = fs.readFileSync(filePath);
         res.writeHead(200, {
-          'Content-Type': contentType,
-          'Content-Length': stat.size,
-          'Cache-Control': ext === '.html' ? 'no-cache' : 'max-age=86400',
+          "Content-Type": contentType,
+          "Content-Length": data.length,
+          "Cache-Control": ext === ".html" ? "no-cache" : "max-age=86400",
         });
-        fs.createReadStream(filePath).pipe(res);
+        res.end(data);
       } catch (err) {
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
         res.end(String(err));
       }
     });
@@ -897,6 +907,7 @@ function startHttpServer() {
 // ============================================================================
 async function createWindow() {
   const port = await startHttpServer();
+  const iconPath = path.join(__dirname, 'icon.png');
 
   mainWindow = new BrowserWindow({
     title: 'Pad2PS Launcher',
@@ -904,13 +915,46 @@ async function createWindow() {
     autoHideMenuBar: true,
     frame: false,
     backgroundColor: '#0B0B0F',
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
 
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    try {
+      shell.openExternal(url);
+    } catch {}
+    return { action: 'deny' };
+  });
+
   mainWindow.loadURL(`http://127.0.0.1:${port}/index.html`);
+
+  let allowQuit = false;
+  mainWindow.on('close', (e) => {
+    if (allowQuit) return;
+    e.preventDefault();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.focus();
+    }
+    dialog
+      .showMessageBox(mainWindow, {
+        type: 'question',
+        buttons: ['Sim', 'Não'],
+        defaultId: 1, // foco padrão em "Não"
+        cancelId: 1,
+        title: 'Pad2PS Launcher',
+        message: 'Sair do Pad2PS Launcher?',
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          allowQuit = true;
+          app.exit(0);
+        }
+      })
+      .catch(() => {});
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;

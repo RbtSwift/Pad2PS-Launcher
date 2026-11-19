@@ -19,6 +19,8 @@ import { ScreensaverOverlay } from './components/ScreensaverOverlay';
 import { SystemView, SystemViewHandle } from './components/SystemView';
 import { TopBar } from './components/TopBar';
 import { TranslatorModal } from './components/TranslatorModal';
+import { UpdateModal } from './components/UpdateModal';
+import { checkForAppUpdate, type UpdateCheckResult } from './utils/updateChecker';
 import {
   WelcomeControllerModal,
   WelcomeControllerModalHandle,
@@ -310,6 +312,23 @@ export default function App() {
   const [launchingGame, setLaunchingGame] = useState<Game | null>(null);
   const [modalFocusIndex, setModalFocusIndex] = useState<number>(0);
   const [isSleeping, setIsSleeping] = useState<boolean>(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateCheckResult | null>(null);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.4')
+      .then((res) => {
+        if (isMounted && res.hasUpdate) {
+          setUpdateInfo(res);
+          setIsUpdateModalOpen(true);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const [buttonMapping, setButtonMapping] = useState<GamepadButtonMapping>(
     loadStoredButtonMapping
@@ -1376,6 +1395,10 @@ export default function App() {
               setSelectedIndex(0);
             }}
             onSleepMode={() => setIsSleeping(true)}
+            onOpenUpdateModal={(info) => {
+              setUpdateInfo(info);
+              setIsUpdateModalOpen(true);
+            }}
             onRestart={() => {
               bootTimestampRef.current = Date.now();
               setLaunchingGame(null);
@@ -1594,6 +1617,14 @@ export default function App() {
             onWake={handleWakeScreensaver}
           />
         )}
+
+        {/* Modal de Atualização */}
+        <UpdateModal
+          isOpen={isUpdateModalOpen}
+          onClose={() => setIsUpdateModalOpen(false)}
+          updateInfo={updateInfo}
+          appName="Pad2PS Launcher"
+        />
       </div>
     </ControllerLayoutProvider>
   );

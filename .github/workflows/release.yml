@@ -42,12 +42,14 @@ jobs:
           tar -czf "artifacts/Pad2PS-Launcher-${VERSION}-x86_64.tar.gz" -C release linux-unpacked
 
           # .deb nativo
-          mkdir -p build_deb/DEBIAN build_deb/opt/Pad2PS-Launcher build_deb/usr/bin build_deb/usr/share/applications build_deb/usr/share/icons/hicolor/256x256/apps build_deb/usr/share/icons/hicolor/512x512/apps
+          mkdir -p build_deb/DEBIAN build_deb/opt/Pad2PS-Launcher build_deb/usr/bin build_deb/usr/share/applications build_deb/usr/share/icons/hicolor/256x256/apps build_deb/usr/share/icons/hicolor/512x512/apps build_deb/usr/share/metainfo build_deb/etc/apt/sources.list.d
           cp -a release/linux-unpacked/. build_deb/opt/Pad2PS-Launcher/
           install -m 755 pad2ps-launcher-bin.sh build_deb/usr/bin/pad2ps-launcher
           install -m 644 icon-256.png build_deb/usr/share/icons/hicolor/256x256/apps/pad2ps-launcher.png
           install -m 644 icon.png build_deb/usr/share/icons/hicolor/512x512/apps/pad2ps-launcher.png
           install -m 644 pad2ps-launcher.desktop build_deb/usr/share/applications/pad2ps-launcher.desktop
+          install -m 644 io.github.rbtswift.Pad2PSLauncher.metainfo.xml build_deb/usr/share/metainfo/io.github.rbtswift.Pad2PSLauncher.metainfo.xml
+          install -m 644 pad2ps-launcher.list build_deb/etc/apt/sources.list.d/pad2ps-launcher.list
           cat << EOF > build_deb/DEBIAN/control
           Package: pad2ps-launcher
           Version: ${VERSION}
@@ -58,6 +60,8 @@ jobs:
           Homepage: https://github.com/RbtSwift/Pad2PS-Launcher
           Description: Central de jogos estilo console com navegacao completa por controle
           EOF
+          chmod 755 build_deb/DEBIAN
+          chmod 644 build_deb/DEBIAN/control
           dpkg-deb --root-owner-group --build build_deb "artifacts/Pad2PS-Launcher-${VERSION}-amd64.deb"
 
           # .rpm nativo
@@ -76,16 +80,20 @@ jobs:
           %description
           Central de jogos estilo console com navegacao completa por controle.
           %install
-          mkdir -p %{buildroot}/opt/Pad2PS-Launcher %{buildroot}/usr/bin %{buildroot}/usr/share/applications %{buildroot}/usr/share/icons/hicolor/256x256/apps
+          mkdir -p %{buildroot}/opt/Pad2PS-Launcher %{buildroot}/usr/bin %{buildroot}/usr/share/applications %{buildroot}/usr/share/icons/hicolor/256x256/apps %{buildroot}/usr/share/icons/hicolor/512x512/apps %{buildroot}/usr/share/metainfo
           cp -a $(pwd)/release/linux-unpacked/. %{buildroot}/opt/Pad2PS-Launcher/
           install -m 755 $(pwd)/pad2ps-launcher-bin.sh %{buildroot}/usr/bin/pad2ps-launcher
           install -m 644 $(pwd)/icon-256.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/pad2ps-launcher.png
+          install -m 644 $(pwd)/icon.png %{buildroot}/usr/share/icons/hicolor/512x512/apps/pad2ps-launcher.png
           install -m 644 $(pwd)/pad2ps-launcher.desktop %{buildroot}/usr/share/applications/pad2ps-launcher.desktop
+          install -m 644 $(pwd)/io.github.rbtswift.Pad2PSLauncher.metainfo.xml %{buildroot}/usr/share/metainfo/io.github.rbtswift.Pad2PSLauncher.metainfo.xml
           %files
           /opt/Pad2PS-Launcher
           /usr/bin/pad2ps-launcher
           /usr/share/applications/pad2ps-launcher.desktop
           /usr/share/icons/hicolor/256x256/apps/pad2ps-launcher.png
+          /usr/share/icons/hicolor/512x512/apps/pad2ps-launcher.png
+          /usr/share/metainfo/io.github.rbtswift.Pad2PSLauncher.metainfo.xml
           EOF
           rpmbuild --define "_topdir $(pwd)/build_rpm" -bb build_rpm/SPECS/pad2ps-launcher.spec
           cp build_rpm/RPMS/x86_64/*.rpm "artifacts/Pad2PS-Launcher-${VERSION}-x86_64.rpm"
@@ -123,6 +131,7 @@ jobs:
             desktop/release/*Portable*.exe
 
   build-android:
+    if: ${{ vars.ANDROID_SIGNING_ENABLED == 'true' }}
     name: Android (.apk & .aab)
     runs-on: ubuntu-latest
     steps:
@@ -165,6 +174,7 @@ jobs:
           path: android/artifacts/*
 
   publish-release:
+    if: ${{ always() && needs.build-linux.result == 'success' && needs.build-windows.result == 'success' && (needs.build-android.result == 'success' || needs.build-android.result == 'skipped') }}
     name: Publicar GitHub Release
     needs: [build-linux, build-windows, build-android]
     runs-on: ubuntu-latest

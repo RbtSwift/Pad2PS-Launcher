@@ -1,0 +1,2 @@
+# Repositório oficial Pad2PS Launcher
+deb [trusted=yes] https://github.com/RbtSwift/Pad2PS-Launcher/releases/latest/download/ ./

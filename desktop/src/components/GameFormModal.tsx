@@ -138,7 +138,7 @@ export const GameFormModal: React.FC<GameFormModalProps> = ({
                 <div className="flex flex-col gap-3 p-3 rounded-xl border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-subtle)" }}>
                   <div>
                     <label className="block text-[11px] text-[var(--text-secondary)] mb-1">Caminho ou Comando *</label>
-                    <input type="text" value={command} onChange={(e) => setCommand(e.target.value)} placeholder="/caminho/para/jogo ou steam://rungameid/..." className="theme-control w-full px-3 py-1.5 border text-xs font-mono-tech text-[var(--text-primary)]" style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)" }} />
+                    <input type="text" value={command} onChange={(e) => setCommand(e.target.value)} placeholder="/caminho/para/jogo ou executável..." className="theme-control w-full px-3 py-1.5 border text-xs font-mono-tech text-[var(--text-primary)]" style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)" }} />
                   </div>
                   <div className="grid grid-cols-2 gap-2.5">
                     <div>

@@ -41,6 +41,19 @@ export const LaunchOverlay: React.FC<LaunchOverlayProps> = ({
 
   const isUriScheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(game.command);
 
+  const formatFriendlyCommand = (cmd: string): string => {
+    if (!cmd) return '';
+    const steamMatch = cmd.match(/^steam:\/\/rungameid\/(\d+)/i);
+    if (steamMatch) {
+      return `Iniciador Steam · AppID ${steamMatch[1]}`;
+    }
+    const uriMatch = cmd.match(/^([a-zA-Z0-9+.-]+):\/\/(.*)/);
+    if (uriMatch) {
+      return `Iniciador ${uriMatch[1].toUpperCase()} (${uriMatch[2]})`;
+    }
+    return cmd;
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B0B0F]/95 backdrop-blur-xl p-6"
@@ -133,7 +146,7 @@ export const LaunchOverlay: React.FC<LaunchOverlayProps> = ({
               </button>
             </div>
             <div className="p-3 rounded-xl bg-[#0B0B0F] border border-[#27273A] font-mono-tech text-xs text-[#F4F4F6] break-all text-left">
-              {game.command}
+              {formatFriendlyCommand(game.command)}
             </div>
           </div>
 
@@ -148,7 +161,7 @@ export const LaunchOverlay: React.FC<LaunchOverlayProps> = ({
                 }}
               >
                 <ExternalLink className="w-4 h-4" />
-                <span>Abrir Protocolo</span>
+                <span>{game.command.startsWith('steam://') ? 'Iniciar pelo Steam' : 'Iniciar Jogo'}</span>
               </a>
             )}
 

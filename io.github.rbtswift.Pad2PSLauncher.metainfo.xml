@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.rbtswift.Pad2PSLauncher</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <icon type="stock">io.github.rbtswift.Pad2PSLauncher</icon>
+  <name>Pad2PS Launcher</name>
+  <summary>Central de jogos estilo console com navegação completa por controle</summary>
+  <description>
+    <p>
+      Transforme seu PC em uma central de jogos fluida feita para usar com gamepad.
+      Reúne títulos de diferentes lojas e emuladores em um só lugar, com busca integrada
+      de capas, temas visuais customizáveis e proteção de tela.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.rbtswift.Pad2PSLauncher.desktop</launchable>
+  <url type="homepage">https://github.com/RbtSwift/Pad2PS-Launcher</url>
+  <url type="bugtracker">https://github.com/RbtSwift/Pad2PS-Launcher/issues</url>
+  <developer id="io.github.rbtswift">
+    <name>Pad2PS (Ravi Rosa)</name>
+  </developer>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="1.0.4" date="2026-11-19">
+      <description>
+        <p>Release v1.0.4: Melhorias no instalador Linux (.deb/.rpm/AppImage), confirmação ao sair e inclusão de metadados AppStream.</p>
+      </description>
+    </release>
+  </releases>
+</component>
