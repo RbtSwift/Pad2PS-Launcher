@@ -5,10 +5,22 @@ import type {ResolvedControllerLayout} from '../types';
 interface Props { layout: ResolvedControllerLayout; onExit: () => void; }
 interface Snapshot { name: string; axes: number[]; buttons: boolean[]; }
 
-const BUTTON_LABELS: Record<ResolvedControllerLayout, string[]> = {
-  xbox: ['A','B','X','Y','LB','RB','LT','RT','View','Start','LS','RS','↑','↓','←','→','Xbox'],
-  playstation: ['×','○','□','△','L1','R1','L2','R2','Share','Options','L3','R3','↑','↓','←','→','PS'],
-  nintendo: ['B','A','Y','X','L','R','ZL','ZR','−','+','LS','RS','↑','↓','←','→','Home'],
+const LABELS: Record<ResolvedControllerLayout, string[]> = {
+  playstation: ['×', '○', '□', '△', 'L1', 'R1', 'L2', 'R2', 'Share', 'Options', 'L3', 'R3', '↑', '↓', '←', '→', 'PS'],
+  xbox: ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Menu', 'LS', 'RS', '↑', '↓', '←', '→', 'Xbox'],
+  nintendo: ['B', 'A', 'Y', 'X', 'L', 'R', 'ZL', 'ZR', '-', '+', 'L3', 'R3', '↑', '↓', '←', '→', 'Home'],
+};
+
+const STICK_POSITIONS: Record<ResolvedControllerLayout, [[number, number], [number, number]]> = {
+  playstation: [[405, 350], [595, 350]],
+  xbox: [[350, 352], [650, 352]],
+  nintendo: [[350, 352], [650, 352]],
+};
+
+const EXIT_COMBO: Record<ResolvedControllerLayout, string> = {
+  playstation: 'L1 + R1 + Options',
+  xbox: 'LB + RB + Menu',
+  nintendo: 'L + R + +',
 };
 
 export function ControllerTestModal({layout, onExit}: Props) {
@@ -16,6 +28,8 @@ export function ControllerTestModal({layout, onExit}: Props) {
   const [progress, setProgress] = useState(0);
   const escHeld = useRef(false);
   const holdStarted = useRef<number | null>(null);
+  const labels = LABELS[layout] ?? LABELS.xbox;
+  const [leftStick, rightStick] = STICK_POSITIONS[layout] ?? STICK_POSITIONS.xbox;
 
   useEffect(() => {
     let frame = 0;
@@ -24,13 +38,12 @@ export function ControllerTestModal({layout, onExit}: Props) {
       const pads = navigator.getGamepads?.();
       const pad = pads ? Array.from(pads).find((item) => item?.connected) : null;
       const buttons = pad ? Array.from(pad.buttons, (button) => button.pressed || button.value > 0.5) : [];
-      if (now - lastUpdate > 33) {
+      if (now - lastUpdate > 32) {
         setSnapshot(pad ? {name: pad.id, axes: Array.from(pad.axes), buttons} : null);
         lastUpdate = now;
       }
       const combo = Boolean(buttons[4] && buttons[5] && buttons[9]);
-      const holding = combo || escHeld.current;
-      if (holding) {
+      if (combo || escHeld.current) {
         holdStarted.current ??= now;
         const duration = combo ? 1700 : 2000;
         const amount = Math.min(100, ((now - holdStarted.current) / duration) * 100);
@@ -52,17 +65,109 @@ export function ControllerTestModal({layout, onExit}: Props) {
     return () => { cancelAnimationFrame(frame); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); };
   }, [onExit]);
 
-  const stick = (title: string, x: number, y: number) => (
-    <div className="rounded-xl border border-white/10 bg-black/30 p-3"><p className="mb-2 text-xs font-semibold text-zinc-200">{title}</p><div className="relative mx-auto h-28 w-28 rounded-full border border-white/20 bg-white/[0.03]"><span className="absolute left-1/2 top-0 h-full border-l border-white/10"/><span className="absolute top-1/2 left-0 w-full border-t border-white/10"/><span className="absolute h-3.5 w-3.5 rounded-full bg-cyan-400 shadow-[0_0_12px_#22d3ee]" style={{left: `${((x + 1) / 2) * 100}%`, top: `${((y + 1) / 2) * 100}%`, transform: 'translate(-50%, -50%)'}}/></div><p className="mt-2 text-center font-mono text-[10px] text-zinc-400">X {x.toFixed(2)} · Y {y.toFixed(2)}</p></div>
-  );
+  const button = (index: number, cx: number, cy: number, r: number, text = labels[index]) => {
+    const active = Boolean(snapshot?.buttons[index]);
+    const face = [0, 1, 2, 3].includes(index);
+    const color = layout === 'playstation' && face
+      ? ({0: '#38bdf8', 1: '#f87171', 2: '#f472b6', 3: '#4ade80'} as Record<number, string>)[index]
+      : layout === 'nintendo' && face
+        ? ({0: '#ef4444', 1: '#38bdf8', 2: '#4ade80', 3: '#facc15'} as Record<number, string>)[index]
+        : '#67e8f9';
+    return <g key={`button-${index}`} className={active ? 'controller-part controller-part-active' : 'controller-part'}>
+      {active && <circle cx={cx} cy={cy} r={r + 10} fill={color} opacity=".22" filter="url(#pad-glow)" />}
+      <circle cx={cx} cy={cy} r={r} fill={active ? color : '#151b25'} stroke={active ? color : '#687488'} strokeWidth="3" />
+      <text x={cx} y={cy + 5} textAnchor="middle" fill={active && face ? '#07111d' : active ? '#06131a' : '#e2e8f0'} fontSize={text.length > 4 ? 13 : 17} fontWeight="800">{text}</text>
+    </g>;
+  };
 
-  return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"><section role="dialog" aria-modal="true" aria-labelledby="controller-test-title" className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-cyan-400/40 bg-[#111116] p-5 text-white shadow-2xl sm:p-7">
-    <header className="flex items-center gap-3"><Gamepad2 className="h-7 w-7 text-cyan-300"/><div><h2 id="controller-test-title" className="text-xl font-bold">Testar Controle</h2><p className="text-xs text-zinc-400">{snapshot?.name ?? 'Aguardando controle…'}</p></div></header>
-    <div className="my-5 rounded-xl border-2 border-amber-400 bg-amber-400/10 p-4 text-center"><p className="text-sm font-extrabold text-amber-200">Segure L1 + R1 + Start (ou segure Esc por 2s) para sair do teste</p><div className="mt-3 h-3 overflow-hidden rounded-full bg-black/60"><div className="h-full rounded-full bg-amber-300 transition-[width] duration-75" style={{width: `${progress}%`}}/></div><p className="mt-1 text-[11px] text-amber-100/70">Mantenha pressionado até a barra completar</p></div>
-    {!snapshot ? <div className="rounded-xl border border-white/10 p-6 text-center text-sm text-zinc-400">Conecte o controle e pressione qualquer botão para começar.</div> : <>
-      <div className="grid grid-cols-2 gap-3">{stick('Analógico esquerdo', snapshot.axes[0] ?? 0, snapshot.axes[1] ?? 0)}{stick('Analógico direito', snapshot.axes[2] ?? 0, snapshot.axes[3] ?? 0)}</div>
-      <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6">{(BUTTON_LABELS[layout] ?? BUTTON_LABELS.xbox).map((label, index) => <div key={`${label}-${index}`} className={`rounded-lg border p-2 text-center text-xs font-bold transition-colors ${snapshot.buttons[index] ? 'border-cyan-300 bg-cyan-400 text-black shadow-[0_0_12px_#22d3ee]' : 'border-white/10 bg-black/30 text-zinc-400'}`}>{label}</div>)}</div>
-    </>}
-    <aside className="mt-5 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-xs leading-relaxed text-zinc-300">Para usar funções mais avançadas (overlay flutuante em tempo real, conversão de ícones para PlayStation, bateria e diagnóstico completo), acesse o <a href="https://github.com/RbtSwift/Pad2PS/releases/latest" target="_blank" rel="noreferrer" className="font-bold text-cyan-300 underline">Pad2PS Oficial</a>.</aside>
-  </section></div>;
+  const shoulder = (index: number, x: number, y: number, w: number, h: number) => {
+    const active = Boolean(snapshot?.buttons[index]);
+    return <g key={`shoulder-${index}`} className={active ? 'controller-part controller-part-active' : 'controller-part'}>
+      <rect x={x} y={y} width={w} height={h} rx={h / 2} fill={active ? '#67e8f9' : '#19212e'} stroke={active ? '#a5f3fc' : '#778398'} strokeWidth="3" />
+      <text x={x + w / 2} y={y + h / 2 + 5} textAnchor="middle" fill={active ? '#07111d' : '#e2e8f0'} fontSize="16" fontWeight="800">{labels[index]}</text>
+    </g>;
+  };
+
+  const stick = (index: number, cx: number, cy: number, axisX: number, axisY: number) => {
+    const active = Boolean(snapshot?.buttons[index]);
+    const x = snapshot?.axes[axisX] ?? 0;
+    const y = snapshot?.axes[axisY] ?? 0;
+    const knobX = cx + Math.max(-1, Math.min(1, x)) * 36;
+    const knobY = cy + Math.max(-1, Math.min(1, y)) * 36;
+    return <g key={`stick-${index}`}>
+      <circle cx={cx} cy={cy} r="54" fill={active ? '#164e63' : '#101621'} stroke={active ? '#67e8f9' : '#778398'} strokeWidth={active ? 5 : 3} className="controller-part" />
+      <circle cx={cx} cy={cy} r="37" fill="none" stroke="#344052" strokeWidth="2" />
+      <path d={`M${cx - 25} ${cy}h50 M${cx} ${cy - 25}v50`} stroke="#344052" strokeWidth="2" />
+      {active && <circle cx={cx} cy={cy} r="61" fill="#67e8f9" opacity=".12" filter="url(#pad-glow)" />}
+      <circle cx={knobX} cy={knobY} r="23" fill={active ? '#67e8f9' : '#596779'} stroke={active ? '#cffafe' : '#8996a8'} strokeWidth="3" className="controller-knob" />
+      <text x={cx} y={cy + 4} textAnchor="middle" fill={active ? '#07111d' : '#e2e8f0'} fontSize="12" fontWeight="900">{labels[index]}</text>
+    </g>;
+  };
+
+  const dpadButton = (index: number, x: number, y: number, w: number, h: number) => {
+    const active = Boolean(snapshot?.buttons[index]);
+    return <g key={`dpad-${index}`} className={active ? 'controller-part controller-part-active' : 'controller-part'}>
+      <rect x={x} y={y} width={w} height={h} rx="8" fill={active ? '#67e8f9' : '#1a2230'} stroke={active ? '#a5f3fc' : '#647185'} strokeWidth="3" />
+      <text x={x + w / 2} y={y + h / 2 + 6} textAnchor="middle" fill={active ? '#07111d' : '#e2e8f0'} fontSize="19" fontWeight="900">{labels[index]}</text>
+    </g>;
+  };
+
+  const centerButton = (index: number, cx: number) => {
+    const active = Boolean(snapshot?.buttons[index]);
+    const w = labels[index].length > 4 ? 82 : 68;
+    return <g key={`center-${index}`} className={active ? 'controller-part controller-part-active' : 'controller-part'}>
+      {active && <rect x={cx - w / 2 - 7} y="249" width={w + 14} height="48" rx="18" fill="#67e8f9" opacity=".22" filter="url(#pad-glow)"/>}
+      <rect x={cx - w / 2} y="256" width={w} height="34" rx="14" fill={active ? '#67e8f9' : '#151b25'} stroke={active ? '#a5f3fc' : '#687488'} strokeWidth="3"/>
+      <text x={cx} y="278" textAnchor="middle" fill={active ? '#07111d' : '#e2e8f0'} fontSize={labels[index].length > 5 ? 11 : 13} fontWeight="800">{labels[index]}</text>
+    </g>;
+  };
+
+  return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-3 backdrop-blur-sm sm:p-5">
+    <section role="dialog" aria-modal="true" aria-labelledby="controller-test-title" className="max-h-[95vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-cyan-300/40 bg-[#0c1018] p-4 text-white shadow-[0_24px_90px_rgba(0,0,0,.72)] sm:p-6">
+      <header className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-200/25 bg-cyan-300/10"><Gamepad2 className="h-6 w-6 text-cyan-200"/></div><div><h2 id="controller-test-title" className="text-xl font-bold tracking-tight">Testar Controle</h2><p className="mt-0.5 max-w-[65vw] truncate text-xs text-slate-400">{snapshot?.name ?? 'Aguardando controle…'}</p></div></div>
+        <span className="rounded-full border border-white/10 bg-white/[.04] px-3 py-1 text-[11px] font-semibold text-slate-300">{layout === 'playstation' ? 'PlayStation' : layout === 'nintendo' ? 'Nintendo' : 'Xbox'}</span>
+      </header>
+
+      <div className="my-4 rounded-xl border-2 border-amber-300/80 bg-amber-300/[.08] p-3 text-center sm:my-5 sm:p-4">
+        <p className="text-sm font-extrabold text-amber-100">Segure {EXIT_COMBO[layout] ?? EXIT_COMBO.xbox} (ou segure Esc por 2s) para sair do teste</p>
+        <div className="mt-3 h-3 overflow-hidden rounded-full bg-black/60"><div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-yellow-200 shadow-[0_0_18px_rgba(251,191,36,.8)] transition-[width] duration-75" style={{width: `${progress}%`}}/></div>
+        <p className="mt-1 text-[10px] text-amber-100/65">Mantenha o combo por cerca de 1,7 s até a barra completar</p>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-white/[.08] bg-[radial-gradient(ellipse_at_center,rgba(36,52,72,.44),rgba(8,12,19,.96)_72%)] px-1 py-3 sm:px-5 sm:py-4">
+        <svg viewBox="0 0 1000 520" role="img" aria-label={`Ilustração de controle ${layout} com botões e analógicos ativos`} className="mx-auto block w-full max-w-[760px] select-none">
+          <defs>
+            <linearGradient id="pad-shell" x1="0" x2="1" y1="0" y2="1"><stop stopColor="#273345"/><stop offset=".48" stopColor="#151d2a"/><stop offset="1" stopColor="#0b1018"/></linearGradient>
+            <linearGradient id="pad-highlight" x1="0" x2="0" y1="0" y2="1"><stop stopColor="#9fb0c5" stopOpacity=".25"/><stop offset="1" stopColor="#9fb0c5" stopOpacity="0"/></linearGradient>
+            <filter id="pad-glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="8"/></filter>
+          </defs>
+          <path d="M205 198 C220 153 267 133 333 151 L408 174 Q500 153 592 174 L667 151 C733 133 780 153 795 198 L852 371 C867 414 838 446 801 425 L703 365 H297 L199 425 C162 446 133 414 148 371 Z" fill="url(#pad-shell)" stroke="#7c899b" strokeWidth="5"/>
+          <path d="M220 207 C237 170 273 155 326 167 L411 188 Q500 169 589 188 L674 167 C727 155 763 170 780 207 L814 312 Q700 279 500 286 Q300 279 186 312 Z" fill="url(#pad-highlight)" opacity=".72"/>
+          <path d="M229 212 Q260 176 320 179 M771 212 Q740 176 680 179" fill="none" stroke="#cbd5e1" strokeOpacity=".17" strokeWidth="3"/>
+
+          {shoulder(6, 246, 111, 174, 35)}{shoulder(7, 580, 111, 174, 35)}
+          {shoulder(4, 255, 154, 190, 43)}{shoulder(5, 555, 154, 190, 43)}
+
+          <g aria-label="D-Pad">{dpadButton(12, 247, 267, 52, 53)}{dpadButton(13, 247, 377, 52, 53)}{dpadButton(14, 192, 322, 53, 53)}{dpadButton(15, 302, 322, 53, 53)}</g>
+          <g aria-label="Botões frontais">
+            {button(3, 739, 281, 29)}{button(1, 791, 333, 29)}{button(0, 739, 385, 29)}{button(2, 687, 333, 29)}
+          </g>
+
+          {stick(10, leftStick[0], leftStick[1], 0, 1)}
+          {stick(11, rightStick[0], rightStick[1], 2, 3)}
+
+          {button(16, 500, 221, 22)}
+          {centerButton(8, 447)}{centerButton(9, 553)}
+
+          <text x={leftStick[0]} y="440" textAnchor="middle" fill="#94a3b8" fontSize="12" fontWeight="700">ANALÓGICO ESQUERDO</text>
+          <text x={rightStick[0]} y="440" textAnchor="middle" fill="#94a3b8" fontSize="12" fontWeight="700">ANALÓGICO DIREITO</text>
+          <text x="500" y="478" textAnchor="middle" fill="#64748b" fontSize="12" fontWeight="600">Aperte qualquer botão para ver o destaque</text>
+        </svg>
+      </div>
+
+      {!snapshot && <p className="mt-3 text-center text-xs text-slate-400">Conecte o controle e pressione qualquer botão para começar.</p>}
+      <aside className="mt-4 rounded-xl border border-white/10 bg-white/[.035] p-3.5 text-xs leading-relaxed text-slate-300 sm:p-4">Para usar funções mais avançadas (overlay flutuante em tempo real, conversão de ícones para PlayStation, bateria e diagnóstico completo), acesse o <a href="https://github.com/RbtSwift/Pad2PS/releases/latest" target="_blank" rel="noreferrer" className="font-bold text-cyan-200 underline decoration-cyan-200/50 underline-offset-2 hover:text-white">Pad2PS Oficial</a>.</aside>
+    </section>
+  </div>;
 }

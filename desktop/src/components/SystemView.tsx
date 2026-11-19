@@ -417,7 +417,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
         setIsCheckingUpdates(true);
         soundEngine.playMove();
         showToast('Verificando atualizações no GitHub...');
-        const res = await checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.5');
+        const res = await checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.6');
         if (res.hasUpdate && onOpenUpdateModal) {
           soundEngine.playConfirm();
           onOpenUpdateModal(res);
@@ -426,7 +426,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           showToast('Não foi possível verificar atualizações. Sem conexão.');
         } else {
           soundEngine.playConfirm();
-          showToast('O Pad2PS Launcher está atualizado (v1.0.5)!');
+          showToast('O Pad2PS Launcher está atualizado (v1.0.6)!');
         }
       } catch {
         showToast('Erro ao verificar atualizações.');
@@ -2715,7 +2715,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                               Verificar Atualizações
                             </p>
                             <p className="text-sm lg:text-base text-[var(--text-secondary)] mt-0.5 leading-relaxed">
-                              Versão v1.0.5 instalada. Consulta releases oficiais no GitHub e oferece downloads compatíveis.
+                              Versão v1.0.6 instalada. Consulta releases oficiais no GitHub e oferece downloads compatíveis.
                             </p>
                           </div>
                         </div>
