@@ -1,18 +1,14 @@
 Package: pad2ps-launcher
-Version: 1.0.4
+Version: 1.0.5
 Architecture: amd64
 Maintainer: Pad2PS (Ravi Rosa) <pad2ps@eusolravi.com.br>
-Installed-Size: 435383
-Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0
-Recommends: libappindicator3-1
-Filename: Pad2PS-Launcher-1.0.4-amd64.deb
-Size: 129288048
-SHA256: 227f3287c19afd4e0146e7bc4fb9e2b9d5879bbccbc423cc04d23da20d545071
-Section: default
+Filename: Pad2PS-Launcher-1.0.5-amd64.deb
+Size: 129286908
+MD5sum: 610935ea17fdec431e935f9fb2728432
+SHA1: cf3e5964bc6d353ef60f777cafbe670e7e509569
+SHA256: a4c51aa2cd756bd6e5ee64b3a490fe474205441f55095ac25fc22f838d60a637
+Section: games
 Priority: optional
 Homepage: https://github.com/RbtSwift/Pad2PS-Launcher
-Description: Central de jogos estilo console com navegação completa por controle
-  Transforme seu PC em uma central de jogos fluida feita para usar com gamepad. Reúne títulos de diferentes lojas e emuladores em um só lugar, com busca integrada de capas, temas visuais e proteção de tela.
-License: MIT
-Vendor: Pad2PS
+Description: Central de jogos estilo console com navegacao completa por controle
 

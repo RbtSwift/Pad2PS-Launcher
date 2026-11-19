@@ -1,13 +1,13 @@
 Origin: RbtSwift Pad2PS Launcher
 Label: RbtSwift Pad2PS Launcher
 Suite: stable
-Version: 1.0.4
+Version: 1.0.5
 Codename: stable
-Date: Thu, 19 Nov 2026 00:00:00 UTC
+Date: Thu, 19 Nov 2026 07:02:18 +0000
 Architectures: amd64
 Components: main
-Description: Official RbtSwift Pad2PS Launcher APT repository
+Description: Official Pad2PS Launcher APT repository
 Acquire-By-Hash: no
 SHA256:
- b01e4163f1060f8b1e7fd431cca20ddf599277f88d1b3d024c9cb8d94c3e3a85 827 Packages
- 373e2552fe42a29026da7f6f604ddf12d46fc9fedc3480308efdfc1582c4db24 566 Packages.gz
+ bee4919f89913d7f6e3d3e12ed8b964ca5bf36bf8f724da015d7895b4303e0cc 506 Packages
+ af986d80bee67e23c1b60a46104b1fc7f0386a4d12c5aa2e529624a2009538b7 379 Packages.gz
