@@ -5,7 +5,7 @@ Maintainer: Pad2PS (Ravi Rosa) <pad2ps@eusolravi.com.br>
 Installed-Size: 435383
 Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0
 Recommends: libappindicator3-1
-Filename: pad2ps-launcher_1.0.4_amd64.deb
+Filename: Pad2PS-Launcher-1.0.4-amd64.deb
 Size: 135444752
 MD5sum: ed8e6fe8cd4452cc625a4633a5aa64f5
 SHA1: 5c1734f2d3d441edde91244af82259e5d2189491
