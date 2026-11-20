@@ -1,13 +1,19 @@
 ## Português (Brasil)
 
-- Corrige a sincronização de perfis Steam com as versões corretas da Steam Web API.
-- Aceita SteamID64 e links de perfil com espaços acidentais, barra final e parâmetros; mensagens de erro agora explicam falhas de chave, perfil e conexão.
-- Reúne SteamGridDB, Steam, RetroAchievements e IGDB na aba **Integrações**, com cartões adaptados para Desktop e Android.
-- Adiciona um aviso de privacidade: não há servidor de coleta, e credenciais e dados sincronizados permanecem no dispositivo.
+- Remove jogos fictícios herdados do protótipo e filtra lojas, launchers e utilitários das bibliotecas detectadas.
+- Adiciona a opção de ocultar jogos da biblioteca e restaurar os itens ocultos nas configurações.
+- Reorganiza a página **Integrações** para focar nas contas Steam e RetroAchievements e mantém o aviso de privacidade local.
+- Melhora os detalhes dos jogos com metadados, progresso de conquistas e ações rápidas de biblioteca.
+- Move as consultas SteamGridDB e IGDB para os processos nativos e remove as chaves da interface web.
+- Ajusta as capas e margens do carrossel Android para manter visível o contorno neon do jogo selecionado.
+- No Android, adiciona o atalho configurável de loja e a opção de escolher o Pad2PS Launcher como tela inicial padrão.
 
 ## English
 
-- Fixes Steam profile synchronization by using the correct Steam Web API endpoint versions.
-- Accepts SteamID64 and profile links with accidental whitespace, trailing slashes, or query parameters; error messages now clarify key, profile, and network failures.
-- Brings SteamGridDB, Steam, RetroAchievements, and IGDB together in the **Integrations** settings page, with cards adapted for Desktop and Android.
-- Adds a privacy notice: there is no data collection server, and credentials and synchronized data stay on the device.
+- Removes fictional prototype games and filters stores, launchers, and utilities from detected libraries.
+- Adds an option to hide games from the library and restore hidden items in settings.
+- Refocuses **Integrations** on Steam and RetroAchievements accounts while retaining the local privacy notice.
+- Improves game details with metadata, achievement progress, and quick library actions.
+- Moves SteamGridDB and IGDB requests into native processes and removes API keys from the web interface.
+- Adjusts Android carousel spacing so selected game neon borders remain visible.
+- Adds a configurable store shortcut and an option to choose Pad2PS Launcher as the Android home app.
