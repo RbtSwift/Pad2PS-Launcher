@@ -25,7 +25,8 @@ export const HeroBackdrop: React.FC<HeroBackdropProps> = ({
           className="absolute inset-0 transition-opacity duration-700 ease-out"
         >
           <img
-            src={game.coverUrl}
+            src={game.steamHeroUrl || game.coverUrl}
+            onError={(event) => { if (game.steamHeroUrl && event.currentTarget.src !== game.coverUrl) event.currentTarget.src = game.coverUrl; }}
             alt=""
             referrerPolicy="no-referrer"
             className={`w-full h-full object-cover scale-110 blur-2xl transition-all duration-700 ${

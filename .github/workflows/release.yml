@@ -27,6 +27,8 @@ jobs:
 
       - name: Instalar dependencias e compilar Vite + AppImage
         working-directory: desktop
+        env:
+          STEAMGRIDDB_API_KEY: ${{ secrets.STEAMGRIDDB_API_KEY }}
         run: |
           npm ci
           npm run build
@@ -118,6 +120,8 @@ jobs:
 
       - name: Instalar dependencias e compilar Windows
         working-directory: desktop
+        env:
+          STEAMGRIDDB_API_KEY: ${{ secrets.STEAMGRIDDB_API_KEY }}
         run: |
           npm ci
           npm run build
@@ -152,6 +156,8 @@ jobs:
 
       - name: Instalar dependencias, sincronizar Capacitor e compilar Android
         working-directory: android
+        env:
+          STEAMGRIDDB_API_KEY: ${{ secrets.STEAMGRIDDB_API_KEY }}
         run: |
           npm ci
           npm run build

@@ -65,10 +65,39 @@ import {
   saveStoredButtonMapping,
 } from './utils/gamepadMapping';
 import { soundEngine } from './utils/sound';
+import { findAutomaticSteamGridDbCover } from './utils/coverSearch';
 
 const GAMES_STORAGE_KEY = 'pad2ps_launcher_games_v1';
 const SETTINGS_STORAGE_KEY = 'pad2ps_launcher_settings_v1';
 const ONBOARDED_STORAGE_KEY = 'pad2ps_launcher_onboarded_v1';
+
+function mergeExternalGames(previous: Game[], scanned: Game[]): Game[] {
+  const matched = new Set<string>();
+  const updated = scanned.map((incoming) => {
+    const saved = previous.find((game) => game.id === incoming.id ||
+      (game.platformLabel === 'Android' && incoming.platformLabel === 'Android' && game.command === incoming.command));
+    if (!saved) return incoming;
+    matched.add(saved.id);
+    const sameAndroidIcon = incoming.isAutomaticCoverFallback && saved.coverUrl === incoming.coverUrl;
+    const savedIsFallback = Boolean(saved.isAutomaticCoverFallback || sameAndroidIcon);
+    const keepSavedCover = Boolean(saved.coverUrl?.trim()) && !savedIsFallback;
+    return {
+      ...incoming,
+      ...saved,
+      title: incoming.title,
+      platform: incoming.platform,
+      platformLabel: incoming.platformLabel,
+      command: incoming.command,
+      coverUrl: saved.isCustomCover || keepSavedCover ? saved.coverUrl : incoming.coverUrl,
+      isCustomCover: Boolean(saved.isCustomCover || incoming.isCustomCover),
+      isAutomaticCoverFallback: saved.isCustomCover || keepSavedCover ? false : incoming.isAutomaticCoverFallback,
+      favorite: Boolean(saved.favorite || incoming.favorite),
+      hoursPlayed: saved.hoursPlayed,
+      lastPlayed: saved.lastPlayed ?? incoming.lastPlayed,
+    };
+  });
+  return [...updated, ...previous.filter((game) => !matched.has(game.id) && !scanned.some((incoming) => incoming.id === game.id))];
+}
 
 const PAGE_ORDER: LauncherPage[] = ['favorites', 'library', 'system'];
 const VALID_THEME_IDS: ThemeId[] = [
@@ -354,6 +383,35 @@ export default function App() {
     }
   }, [games]);
 
+  // Fill missing covers in the background, with at most three SteamGridDB lookups at once.
+  useEffect(() => {
+    let cancelled = false;
+    const pending = games.filter((game) => (!game.coverUrl?.trim() || game.isAutomaticCoverFallback) && !game.isCustomCover);
+    if (!pending.length) return;
+    void (async () => {
+      const covers = new Map<string, string>();
+      let cursor = 0;
+      const worker = async () => {
+        while (!cancelled) {
+          const game = pending[cursor++];
+          if (!game) return;
+          const cover = await findAutomaticSteamGridDbCover(game.title);
+          if (cover) covers.set(game.id, cover);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(3, pending.length) }, worker));
+      if (!cancelled && covers.size) {
+        setGames((current) => current.map((game) => {
+          const cover = covers.get(game.id);
+          return cover && (!game.coverUrl?.trim() || game.isAutomaticCoverFallback) && !game.isCustomCover
+            ? { ...game, coverUrl: cover, isCustomCover: false, isAutomaticCoverFallback: false }
+            : game;
+        }));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [games]);
+
   // Persist button mapping to localStorage
   useEffect(() => {
     saveStoredButtonMapping(buttonMapping);
@@ -553,6 +611,8 @@ export default function App() {
               ? String(item.consoleSystem)
               : undefined,
             coverUrl: String(item.coverUrl || ''),
+            isCustomCover: Boolean(item.isCustomCover),
+            isAutomaticCoverFallback: Boolean(item.isAutomaticCoverFallback),
             command: String(item.command || ''),
             hoursPlayed: Number(item.hoursPlayed) || 0,
             favorite: Boolean(item.favorite),
@@ -560,26 +620,7 @@ export default function App() {
             lastPlayed: item.lastPlayed ? String(item.lastPlayed) : undefined,
           }));
 
-        let savedAndroidSelections: Game[] = [];
-        try {
-          const storedGames = JSON.parse(localStorage.getItem(GAMES_STORAGE_KEY) || '[]');
-          if (Array.isArray(storedGames)) {
-            savedAndroidSelections = storedGames.filter(
-              (game): game is Game => Boolean(game) && typeof game === 'object' &&
-                typeof game.id === 'string' && game.id.startsWith('android-picked-app:') &&
-                typeof game.command === 'string' && Boolean(game.command)
-            );
-          }
-        } catch {
-          // Ignore invalid local library data and keep the Android scan results.
-        }
-        const selectedPackages = new Set(savedAndroidSelections.map((game) => game.command));
-        const mergedGames = [
-          ...sanitized.filter((game) => !selectedPackages.has(game.command)),
-          ...savedAndroidSelections,
-        ];
-
-        setGames(mergedGames);
+        setGames((previous) => mergeExternalGames(previous, sanitized));
         setActivePage('library');
         setPlatformFilter('Todos');
         setFocusedFilterIndex(0);
@@ -588,8 +629,8 @@ export default function App() {
 
         return {
           success: true,
-          count: mergedGames.length,
-          message: `${mergedGames.length} jogos carregados no Pad2PS Launcher.`,
+          count: sanitized.length,
+          message: `${sanitized.length} jogos carregados no Pad2PS Launcher.`,
         };
       } catch (err) {
         return {
@@ -1571,6 +1612,7 @@ export default function App() {
               setActiveModal('edit-game');
             }}
             onDelete={() => handleDeleteGame(selectedGame)}
+            onSaveRetroGameId={(retroGameId) => setGames((previous) => previous.map((game) => game.id === selectedGame.id ? { ...game, retroGameId } : game))}
             onClose={() => {
               soundEngine.playCancel();
               setActiveModal('none');
@@ -1587,7 +1629,7 @@ export default function App() {
             onSelectCover={(coverUrl) => {
               setGames((prev) =>
                 prev.map((g) =>
-                  g.id === selectedGame.id ? { ...g, coverUrl } : g
+                  g.id === selectedGame.id ? { ...g, coverUrl, isCustomCover: true, isAutomaticCoverFallback: false } : g
                 )
               );
               setActiveModal('none');

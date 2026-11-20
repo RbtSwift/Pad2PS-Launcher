@@ -27,6 +27,7 @@ export type SystemCategory =
   | 'appearance'
   | 'controller'
   | 'covers'
+  | 'retro'
   | 'library'
   | 'power';
 
@@ -114,6 +115,9 @@ export interface Game {
   platformLabel?: string;
   consoleSystem?: string;
   coverUrl: string;
+  isCustomCover?: boolean;
+  isAutomaticCoverFallback?: boolean;
+  retroGameId?: number;
   command: string;
   hoursPlayed: number;
   favorite: boolean;

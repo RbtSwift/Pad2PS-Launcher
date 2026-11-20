@@ -63,6 +63,7 @@ function normalizeAndroidGames(raw: AndroidScannedGame[]) {
       platformLabel: item.isRom ? item.platform || 'ROM' : item.isEmulator ? 'Emulador' : 'Android',
       consoleSystem: item.isRom ? item.platform : undefined,
       coverUrl: item.cover || item.iconBase64 || '',
+      isAutomaticCoverFallback: Boolean(item.iconBase64 && item.source === 'android'),
       command,
       hoursPlayed: 0,
       favorite: false,

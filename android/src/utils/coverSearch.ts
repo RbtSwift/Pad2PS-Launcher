@@ -11,10 +11,83 @@ export interface OnlineCoverCandidate {
 
 export function getStoredSteamGridDbKey(): string {
   try {
-    return localStorage.getItem(STEAMGRIDDB_KEY_STORAGE) ?? '';
+    return localStorage.getItem(STEAMGRIDDB_KEY_STORAGE) ??
+      import.meta.env.VITE_STEAMGRIDDB_API_KEY ?? '';
   } catch {
-    return '';
+    return import.meta.env.VITE_STEAMGRIDDB_API_KEY ?? '';
   }
+}
+
+const AUTO_COVER_CACHE_KEY = 'pad2ps_steamgriddb_auto_covers_v1';
+const AUTO_COVER_CACHE_TTL = 1000 * 60 * 60 * 24 * 30;
+
+export function cleanGameTitleForCoverSearch(title: string): string {
+  const clean = title
+    .replace(/\.[a-z0-9]{2,5}$/i, '')
+    .replace(/\s*[[(](?:usa|europe|japan|world|disc\s*\d+|disk\s*\d+|part\s*\d+|rev(?:ision)?\s*[\w.-]+|v\d[\w.-]*|[A-Z]{2,5}-[A-Z0-9-]+)[)\]]/gi, ' ')
+    .replace(/\s*[[(][^\])]*[\])]/g, ' ')
+    .replace(/\b(?:version|ver\.?|build)\s*[\w.-]+$/i, ' ')
+    .replace(/[._]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return clean || title.trim();
+}
+
+interface AutoCoverCacheEntry { url: string | null; expiresAt: number }
+
+function readAutoCoverCache(): Record<string, AutoCoverCacheEntry> {
+  try { return JSON.parse(localStorage.getItem(AUTO_COVER_CACHE_KEY) || '{}'); }
+  catch { return {}; }
+}
+
+/** Finds a vertical SteamGridDB grid and persistently caches both matches and misses. */
+export async function findAutomaticSteamGridDbCover(title: string): Promise<string | null> {
+  const key = getStoredSteamGridDbKey().trim();
+  const query = cleanGameTitleForCoverSearch(title);
+  if (!key || !query) return null;
+
+  const cache = readAutoCoverCache();
+  const cacheKey = query.toLocaleLowerCase();
+  const cached = cache[cacheKey];
+  if (cached && cached.expiresAt > Date.now()) return cached.url;
+
+  const headers: HeadersInit = { Authorization: `Bearer ${key}`, Accept: 'application/json' };
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 12000);
+  let coverUrl: string | null = null;
+  let cacheResult = false;
+  try {
+    const search = await fetch(`https://www.steamgriddb.com/api/v2/search/autocomplete/${encodeURIComponent(query)}`, { headers, signal: controller.signal });
+    if (!search.ok) return null;
+    cacheResult = true;
+    const searchJson = await search.json() as { data?: SteamGridSearchItem[] };
+    const matches = Array.isArray(searchJson.data) ? searchJson.data : [];
+    if (!matches.length) return null;
+    const normalizedQuery = query.toLocaleLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const game = matches.find((item) => item.name.toLocaleLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() === normalizedQuery) ?? matches[0];
+    const gridUrl = (dimensions: boolean) => `https://www.steamgriddb.com/api/v2/grids/game/${game.id}${dimensions ? '?dimensions=600x900&nsfw=false&humor=false' : '?nsfw=false&humor=false'}`;
+    let response = await fetch(gridUrl(true), { headers, signal: controller.signal });
+    if (!response.ok) return null;
+    let gridsJson = await response.json() as { data?: SteamGridImageItem[] };
+    let grids = Array.isArray(gridsJson.data) ? gridsJson.data : [];
+    if (!grids.length) {
+      response = await fetch(gridUrl(false), { headers, signal: controller.signal });
+      if (response.ok) {
+        gridsJson = await response.json() as { data?: SteamGridImageItem[] };
+        grids = Array.isArray(gridsJson.data) ? gridsJson.data : [];
+      }
+    }
+    coverUrl = grids.find((grid) => grid.width > 0 && grid.height > grid.width)?.url ?? null;
+  } catch {
+    return null;
+  } finally {
+    window.clearTimeout(timeout);
+    if (cacheResult) {
+      cache[cacheKey] = { url: coverUrl, expiresAt: Date.now() + AUTO_COVER_CACHE_TTL };
+      try { localStorage.setItem(AUTO_COVER_CACHE_KEY, JSON.stringify(cache)); } catch { /* cache is optional */ }
+    }
+  }
+  return coverUrl;
 }
 
 export function saveStoredSteamGridDbKey(key: string): void {

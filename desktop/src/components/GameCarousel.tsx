@@ -8,6 +8,7 @@ import {
   Star,
 } from 'lucide-react';
 import { Game, LauncherPage, LibraryPlatformFilter } from '../types';
+import { fetchSteamCdnCover, findAutomaticSteamGridDbCover } from '../utils/coverSearch';
 
 export const LIBRARY_PLATFORM_FILTERS: LibraryPlatformFilter[] = [
   'Todos',
@@ -34,14 +35,34 @@ interface GameCarouselProps {
   onPlayGame: (game: Game) => void;
   onAddGame: () => void;
   onGoToLibrary: () => void;
+  onAutomaticCoverFound?: (gameId: string, coverUrl: string) => void;
 }
 
-const CoverImage: React.FC<{ game: Game }> = ({ game }) => {
+const CoverImage: React.FC<{ game: Game; onAutomaticCoverFound?: (gameId: string, coverUrl: string) => void }> = ({ game, onAutomaticCoverFound }) => {
   const [failed, setFailed] = useState(false);
+  const [fallbackCover, setFallbackCover] = useState('');
+  const [tryingFallback, setTryingFallback] = useState(false);
 
   useEffect(() => {
     setFailed(false);
-  }, [game.coverUrl]);
+    setFallbackCover('');
+    setTryingFallback(false);
+  }, [game.coverUrl, game.steamAppId]);
+
+  const handleImageError = async () => {
+    if (fallbackCover) { setFailed(true); return; }
+    if (game.steamAppId && !game.isCustomCover && !tryingFallback) {
+      setTryingFallback(true);
+      const official = await fetchSteamCdnCover(String(game.steamAppId));
+      const cover = official?.url ?? await findAutomaticSteamGridDbCover(game.title);
+      if (cover && cover !== game.coverUrl) {
+        setFallbackCover(cover);
+        onAutomaticCoverFound?.(game.id, cover);
+        return;
+      }
+    }
+    setFailed(true);
+  };
 
   if (failed || !game.coverUrl) {
     return (
@@ -65,10 +86,10 @@ const CoverImage: React.FC<{ game: Game }> = ({ game }) => {
 
   return (
     <img
-      src={game.coverUrl}
+      src={fallbackCover || game.coverUrl}
       alt={`Capa de ${game.title}`}
       referrerPolicy="no-referrer"
-      onError={() => setFailed(true)}
+      onError={() => void handleImageError()}
       className="w-full h-full object-cover select-none"
       draggable={false}
     />
@@ -88,6 +109,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
   onPlayGame,
   onAddGame,
   onGoToLibrary,
+  onAutomaticCoverFound,
 }) => {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -153,6 +175,17 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
               <span className="font-mono-tech tabular-nums text-[var(--text-primary)]/90">
                 {selectedGame.hoursPlayed.toFixed(1)}h jogadas
               </span>
+              {typeof selectedGame.steamPlaytimeHours === 'number' && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="font-mono-tech tabular-nums text-[var(--text-primary)]/90">
+                    {selectedGame.steamPlaytimeHours.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h na Steam
+                  </span>
+                </>
+              )}
+              {selectedGame.steamRecentlyPlayed && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300">Jogado recentemente</span>
+              )}
               {selectedGame.favorite && (
                 <>
                   <span aria-hidden="true">·</span>
@@ -344,7 +377,8 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
                         : '0 14px 28px -10px rgba(0, 0, 0, 0.72)',
                     }}
                   >
-                    <CoverImage game={game} />
+                    <CoverImage game={game} onAutomaticCoverFound={onAutomaticCoverFound} />
+                    {game.steamAppId && <span className="absolute top-2 left-2 px-2 py-1 text-[10px] font-bold rounded-full bg-black/75 text-white backdrop-blur-sm">{game.steamInstalled ? 'Instalado' : 'Na Steam'}</span>}
 
                     {!isCurrentCard && (
                       <div className="absolute inset-x-0 bottom-0 p-3.5 bg-gradient-to-t from-black/95 via-black/65 to-transparent text-left">
@@ -374,7 +408,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
                           height: 'clamp(260px, 41vh, 450px)',
                         }}
                       >
-                        <CoverImage game={game} />
+                        <CoverImage game={game} onAutomaticCoverFound={onAutomaticCoverFound} />
                       </div>
                     </div>
                   )}

@@ -1,9 +1,10 @@
-const { app, BrowserWindow, dialog, shell } = require('electron');
+const { app, BrowserWindow, dialog, shell, safeStorage } = require('electron');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { spawn, execFile } = require('child_process');
+const DiscordRPC = require('discord-rpc');
 
 // Diretórios de dados e cache
 const IS_WIN = process.platform === 'win32';
@@ -17,6 +18,9 @@ try {
 } catch {}
 
 const LIBRARY_CACHE = path.join(DATA_DIR, 'biblioteca.json');
+const STEAM_CREDENTIALS_FILE = path.join(DATA_DIR, 'steam-credentials.enc');
+const RETRO_CREDENTIALS_FILE = path.join(DATA_DIR, 'retro-credentials.enc');
+const DISCORD_PRESENCE_FILE = path.join(DATA_DIR, 'discord-presence.json');
 const AUTOSTART_DESKTOP = path.join(USER_HOME, '.config', 'autostart', 'pad2ps-launcher.desktop');
 const DIST_DIR = path.join(__dirname, 'dist');
 
@@ -24,6 +28,128 @@ let httpServer = null;
 let mainWindow = null;
 let allowQuit = false;
 let quitDialogOpen = false;
+const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || 'YOUR_DISCORD_CLIENT_ID';
+let discordRpc = null;
+let discordRpcReady = false;
+let discordActivity = { game: '', controller: '', startedAt: Date.now() };
+function discordEnabled() { try { return JSON.parse(fs.readFileSync(DISCORD_PRESENCE_FILE, 'utf8')).enabled !== false; } catch { return true; } }
+function setDiscordEnabled(enabled) { fs.writeFileSync(DISCORD_PRESENCE_FILE, JSON.stringify({ enabled: Boolean(enabled) })); if (enabled) updateDiscordPresence(); else { discordRpcReady = false; try { discordRpc?.destroy(); } catch {} discordRpc = null; } }
+function updateDiscordPresence() {
+  if (!discordEnabled() || !DISCORD_CLIENT_ID || DISCORD_CLIENT_ID === 'YOUR_DISCORD_CLIENT_ID') return;
+  try {
+    if (!discordRpc) {
+      DiscordRPC.register(DISCORD_CLIENT_ID); discordRpc = new DiscordRPC.Client({ transport: 'ipc' });
+      discordRpc.on('ready', () => { discordRpcReady = true; updateDiscordPresence(); });
+      discordRpc.login({ clientId: DISCORD_CLIENT_ID }).catch(() => {
+        discordRpcReady = false;
+        try { discordRpc?.destroy(); } catch {}
+        discordRpc = null;
+        setTimeout(updateDiscordPresence, 15000).unref?.();
+      });
+      return;
+    }
+    if (!discordRpcReady) return;
+    const playing = Boolean(discordActivity.game);
+    discordRpc.setActivity({ details: playing ? `Jogando ${discordActivity.game}` : 'Navegando na biblioteca • Pad2PS Launcher', state: discordActivity.controller ? `Com controle ${discordActivity.controller}` : 'Pad2PS Launcher', startTimestamp: discordActivity.startedAt, largeImageKey: 'pad2ps', largeImageText: 'Pad2PS Launcher', instance: false });
+  } catch { discordRpcReady = false; }
+}
+function setDiscordGame(game, controller = '') { discordActivity = { game: String(game || ''), controller: String(controller || ''), startedAt: Date.now() }; updateDiscordPresence(); }
+
+function readSteamCredentials() {
+  try {
+    if (!fs.existsSync(STEAM_CREDENTIALS_FILE) || !safeStorage.isEncryptionAvailable()) return null;
+    return JSON.parse(safeStorage.decryptString(fs.readFileSync(STEAM_CREDENTIALS_FILE)));
+  } catch { return null; }
+}
+
+function saveSteamCredentials(credentials) {
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('O cofre criptografado do sistema não está disponível.');
+  if (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text') {
+    throw new Error('Configure um cofre do sistema (Secret Service ou KWallet) para armazenar as credenciais com segurança.');
+  }
+  const encrypted = safeStorage.encryptString(JSON.stringify(credentials));
+  fs.writeFileSync(STEAM_CREDENTIALS_FILE, encrypted, { mode: 0o600 });
+  try { fs.chmodSync(STEAM_CREDENTIALS_FILE, 0o600); } catch {}
+}
+
+function readRetroCredentials() {
+  try { if (!fs.existsSync(RETRO_CREDENTIALS_FILE) || !safeStorage.isEncryptionAvailable()) return null; return JSON.parse(safeStorage.decryptString(fs.readFileSync(RETRO_CREDENTIALS_FILE))); } catch { return null; }
+}
+function saveRetroCredentials(credentials) {
+  if (!safeStorage.isEncryptionAvailable() || (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')) throw new Error('Configure um cofre seguro (Secret Service ou KWallet) para guardar as credenciais.');
+  fs.writeFileSync(RETRO_CREDENTIALS_FILE, safeStorage.encryptString(JSON.stringify(credentials)), { mode: 0o600 });
+  try { fs.chmodSync(RETRO_CREDENTIALS_FILE, 0o600); } catch {}
+}
+async function retroApi(endpoint, params) {
+  const url = new URL(`https://retroachievements.org/API/${endpoint}`);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`RetroAchievements respondeu HTTP ${response.status}.`);
+  const data = await response.json();
+  if (data?.Error) throw new Error(String(data.Error));
+  return data;
+}
+async function syncRetroAccount(usernameInput, keyInput) {
+  const username = String(usernameInput || '').trim(); const key = String(keyInput || '').trim();
+  if (!username || key.length < 10) throw new Error('Informe seu usuário e a Web API Key do RetroAchievements.');
+  const profile = await retroApi('API_GetUserSummary.php', { u: username, y: key });
+  if (!profile?.User) throw new Error('Não foi possível validar essa conta RetroAchievements.');
+  const safeProfile = { username: profile.User, avatar: profile.UserPic || '', points: Number(profile.TotalPoints || 0), softcorePoints: Number(profile.TotalSoftcorePoints || 0), hardcorePoints: Number(profile.TotalTruePoints || 0), rank: Number(profile.Rank || 0) };
+  saveRetroCredentials({ username: profile.User, key, profile: safeProfile });
+  return safeProfile;
+}
+
+function parseSteamProfileInput(input) {
+  const value = String(input || '').trim();
+  const profileMatch = value.match(/steamcommunity\.com\/profiles\/(\d{17})/i);
+  if (profileMatch) return { steamId: profileMatch[1] };
+  const vanityMatch = value.match(/steamcommunity\.com\/id\/([^/?#]+)/i);
+  if (vanityMatch) return { vanity: decodeURIComponent(vanityMatch[1]) };
+  if (/^\d{17}$/.test(value)) return { steamId: value };
+  if (/^[a-zA-Z0-9_-]{2,64}$/.test(value)) return { vanity: value };
+  throw new Error('Informe um SteamID64 de 17 dígitos ou uma URL válida do perfil Steam.');
+}
+
+async function steamApi(interfaceName, methodName, params) {
+  const url = new URL(`https://api.steampowered.com/${interfaceName}/${methodName}/v1/`);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(response.status === 403 ? 'A Steam recusou a chave da Web API.' : `A Steam respondeu com erro HTTP ${response.status}.`);
+  return response.json();
+}
+
+async function resolveSteamId(profileInput, apiKey) {
+  const parsed = parseSteamProfileInput(profileInput);
+  if (parsed.steamId) return parsed.steamId;
+  const result = await steamApi('ISteamUser', 'ResolveVanityURL', { key: apiKey, vanityurl: parsed.vanity });
+  const resolved = result?.response?.steamid;
+  if (!result?.response?.success || !/^\d{17}$/.test(String(resolved || ''))) throw new Error('Não foi possível localizar esse perfil Steam. Confira o link ou apelido.');
+  return String(resolved);
+}
+
+async function syncSteamAccount(apiKeyInput, profileInput) {
+  const apiKey = String(apiKeyInput || '').trim();
+  if (!/^[a-f0-9]{32}$/i.test(apiKey)) throw new Error('A Steam Web API Key deve conter 32 caracteres hexadecimais.');
+  const steamId = await resolveSteamId(profileInput, apiKey);
+  const [summaryResult, ownedResult, recentResult] = await Promise.all([
+    steamApi('ISteamUser', 'GetPlayerSummaries', { key: apiKey, steamids: steamId }),
+    steamApi('IPlayerService', 'GetOwnedGames', { key: apiKey, steamid: steamId, include_appinfo: true, include_played_free_games: true }),
+    steamApi('IPlayerService', 'GetRecentlyPlayedGames', { key: apiKey, steamid: steamId, count: 100 }),
+  ]);
+  const profile = summaryResult?.response?.players?.[0];
+  if (!profile) throw new Error('A Steam não encontrou o perfil informado.');
+  const owned = ownedResult?.response;
+  const privateProfile = !owned || !Array.isArray(owned.games);
+  const games = privateProfile ? [] : owned.games.map((game) => ({
+    appId: Number(game.appid),
+    name: String(game.name || `Steam App ${game.appid}`),
+    playtimeForever: Number(game.playtime_forever || 0),
+    playtimeTwoWeeks: Number(game.playtime_2weeks || 0),
+  }));
+  const recentIds = (recentResult?.response?.games || []).map((game) => Number(game.appid));
+  saveSteamCredentials({ apiKey, steamId, profile: { name: profile.personaname, avatar: profile.avatarfull, profileUrl: profile.profileurl } });
+  return { steamId, profile: { name: profile.personaname, avatar: profile.avatarfull, profileUrl: profile.profileurl }, privateProfile, games, recentIds };
+}
 
 function requestQuit() {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
@@ -239,6 +365,11 @@ function scanSteamGames() {
               platform: 'Steam',
               platformLabel: 'Steam',
               coverUrl: `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${appid}/library_600x900_2x.jpg`,
+              steamAppId: Number(appid),
+              steamInstalled: true,
+              steamRemote: false,
+              steamHeroUrl: `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${appid}/library_hero.jpg`,
+              steamLogoUrl: `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${appid}/logo.png`,
               command: `steam://rungameid/${appid}`,
               hoursPlayed: 0,
               favorite: false,
@@ -727,6 +858,7 @@ function runGameProcess(gameId, command) {
 
     if (proc) {
       proc.on('close', () => {
+        setDiscordGame('');
         const elapsedHours = Math.round(((Date.now() - startTime) / 3600000) * 100) / 100;
         if (elapsedHours > 0.01 && fs.existsSync(LIBRARY_CACHE)) {
           try {
@@ -765,6 +897,69 @@ function startHttpServer() {
         });
         res.end(body);
       };
+
+      const readJsonBody = () => new Promise((resolve, reject) => {
+        let raw = '';
+        req.on('data', (chunk) => {
+          raw += chunk;
+          if (raw.length > 64 * 1024) reject(new Error('Corpo da solicitação muito grande.'));
+        });
+        req.on('end', () => {
+          try { resolve(JSON.parse(raw || '{}')); }
+          catch { reject(new Error('JSON inválido.')); }
+        });
+        req.on('error', reject);
+      });
+
+      // Steam Web API: credentials stay encrypted locally and requests go directly to Valve.
+      if (req.method === 'GET' && pathname === '/api/steam/config') {
+        const credentials = readSteamCredentials();
+        return sendJson({ configured: Boolean(credentials?.apiKey && credentials?.steamId), steamId: credentials?.steamId || '', profile: credentials?.profile || null });
+      }
+      if (req.method === 'GET' && pathname === '/api/retro/config') {
+        const credentials = readRetroCredentials();
+        return sendJson({ configured: Boolean(credentials?.username), username: credentials?.username || '', profile: credentials?.profile || null });
+      }
+      if (req.method === 'POST' && pathname === '/api/retro/sync') {
+        void readJsonBody().then((body) => syncRetroAccount(body.username, body.key)).then((data) => sendJson(data)).catch((error) => sendJson({ error: error.message || 'Não foi possível conectar ao RetroAchievements.' }, 400));
+        return;
+      }
+      if (req.method === 'POST' && pathname === '/api/retro/disconnect') {
+        try { if (fs.existsSync(RETRO_CREDENTIALS_FILE)) fs.unlinkSync(RETRO_CREDENTIALS_FILE); } catch {}
+        return sendJson({ ok: true });
+      }
+      if (req.method === 'GET' && pathname === '/api/retro/game-progress') {
+        const credentials = readRetroCredentials(); const gameId = Number(url.searchParams.get('gameId'));
+        if (!credentials?.username || !Number.isInteger(gameId) || gameId <= 0) return sendJson({ available: false, reason: 'Conta não conectada ou GameID inválido.' }, 400);
+        void retroApi('API_GetGameInfoAndUserProgress.php', { u: credentials.username, y: credentials.key, g: gameId }).then((data) => sendJson({ available: true, data })).catch((error) => sendJson({ available: false, reason: error.message || 'Progresso indisponível.' }));
+        return;
+      }
+      if (req.method === 'GET' && pathname === '/api/discord/config') return sendJson({ enabled: discordEnabled(), configured: DISCORD_CLIENT_ID !== 'YOUR_DISCORD_CLIENT_ID' });
+      if (req.method === 'POST' && pathname === '/api/discord/config') {
+        void readJsonBody().then((body) => { setDiscordEnabled(body.enabled !== false); return sendJson({ enabled: discordEnabled(), configured: DISCORD_CLIENT_ID !== 'YOUR_DISCORD_CLIENT_ID' }); }).catch(() => sendJson({ error: 'Não foi possível salvar a preferência.' }, 400));
+        return;
+      }
+      if (req.method === 'POST' && pathname === '/api/discord/menu') { setDiscordGame(''); return sendJson({ ok: true }); }
+      if (req.method === 'POST' && pathname === '/api/steam/sync') {
+        void readJsonBody().then((body) => syncSteamAccount(body.apiKey, body.profileInput)).then((data) => sendJson(data)).catch((error) => sendJson({ error: error.message || 'Falha ao sincronizar com a Steam.' }, 400));
+        return;
+      }
+      if (req.method === 'POST' && pathname === '/api/steam/disconnect') {
+        try { if (fs.existsSync(STEAM_CREDENTIALS_FILE)) fs.unlinkSync(STEAM_CREDENTIALS_FILE); } catch {}
+        return sendJson({ ok: true });
+      }
+      if (req.method === 'GET' && pathname === '/api/steam/achievements') {
+        const credentials = readSteamCredentials();
+        const appId = Number(url.searchParams.get('appId'));
+        if (!credentials?.apiKey || !credentials?.steamId || !Number.isInteger(appId) || appId <= 0) return sendJson({ available: false, reason: 'Steam não conectada ou jogo inválido.' }, 400);
+        void steamApi('ISteamUserStats', 'GetPlayerAchievements', { key: credentials.apiKey, steamid: credentials.steamId, appid: appId }).then((data) => {
+          const list = data?.playerstats?.achievements;
+          if (!data?.playerstats?.success || !Array.isArray(list) || !list.length) return sendJson({ available: false, reason: 'Conquistas indisponíveis ou perfil privado.' });
+          const unlocked = list.filter((item) => Number(item.achieved) === 1).length;
+          return sendJson({ available: true, unlocked, total: list.length, percentage: Math.round((unlocked / list.length) * 100) });
+        }).catch(() => sendJson({ available: false, reason: 'Conquistas indisponíveis para este jogo ou perfil.' }));
+        return;
+      }
 
       // API: POST /api/pick-game
       if (req.method === "POST" && pathname === "/api/pick-game") {
@@ -816,8 +1011,9 @@ function startHttpServer() {
         req.on('end', () => {
           try {
             const body = JSON.parse(raw || '{}');
-            const { id, command } = body;
+            const { id, command, title, controller } = body;
             if (command) {
+              setDiscordGame(title || 'Jogo', controller || '');
               runGameProcess(id, command);
               return sendJson({ ok: true });
             }
@@ -909,6 +1105,7 @@ function startHttpServer() {
 // CICLO DE VIDA DO ELECTRON
 // ============================================================================
 async function createWindow() {
+  updateDiscordPresence();
   const port = await startHttpServer();
   const iconPath = path.join(__dirname, 'icon.png');
 

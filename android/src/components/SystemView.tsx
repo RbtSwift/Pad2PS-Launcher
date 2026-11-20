@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 import {
   AlertTriangle,
+  BadgeCheck,
   Check,
   Clock,
   Download,
@@ -64,6 +65,7 @@ import {
   resizeImageFileTo1920x1080,
   saveStoredSteamGridDbKey,
 } from '../utils/coverSearch';
+import { clearRetroCredentials, loadRetroCredentials, retroRequest, storeRetroCredentials, type RetroProfile } from '../utils/retroAchievements';
 import {
   formatGamepadButtonName,
   REMAPPABLE_ACTIONS_META,
@@ -118,6 +120,7 @@ const CATEGORIES: {
   { id: 'appearance', label: 'Aparência & Temas', icon: Palette },
   { id: 'controller', label: 'Controle & Atalhos', icon: Gamepad2 },
   { id: 'covers', label: 'Capas & API SteamGridDB', icon: ImageIcon },
+  { id: 'retro', label: 'Integração RetroAchievements (Opcional)', icon: BadgeCheck },
   { id: 'library', label: 'Biblioteca & Dados', icon: Library },
   { id: 'power', label: 'Energia & Web Pad2PS', icon: Power },
 ];
@@ -319,6 +322,33 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
     const [feedback, setFeedback] = useState<string | null>(null);
     const [exportingLogo, setExportingLogo] = useState(false);
     const [autostartEnabled, setAutostartEnabled] = useState<boolean>(false);
+    const [retroUsername, setRetroUsername] = useState('');
+    const [retroKey, setRetroKey] = useState('');
+    const [retroShowKey, setRetroShowKey] = useState(false);
+    const [retroBusy, setRetroBusy] = useState(false);
+    const [retroFeedback, setRetroFeedback] = useState('');
+    const [retroProfile, setRetroProfile] = useState<RetroProfile | null>(null);
+
+    useEffect(() => {
+      void loadRetroCredentials().then(async (credentials) => {
+        if (!credentials) return;
+        setRetroUsername(credentials.username);
+        try { const profile = await retroRequest<RetroProfile>('API_GetUserSummary.php', credentials.username, credentials.key); setRetroProfile(profile); }
+        catch { setRetroFeedback('Credenciais salvas localmente; reconecte para atualizar os dados.'); }
+      });
+    }, []);
+
+    const handleRetroSync = async () => {
+      setRetroBusy(true); setRetroFeedback('Validando direto no RetroAchievements…');
+      try {
+        const profile = await retroRequest<RetroProfile>('API_GetUserSummary.php', retroUsername.trim(), retroKey.trim());
+        if (!profile?.User) throw new Error('Usuário ou chave não reconhecidos.');
+        await storeRetroCredentials(profile.User, retroKey.trim()); setRetroUsername(profile.User); setRetroKey(''); setRetroProfile(profile);
+        setRetroFeedback('Conta conectada. A chave foi salva criptografada neste dispositivo.');
+      } catch (error) { setRetroFeedback(error instanceof Error ? error.message : 'Não foi possível conectar.'); }
+      finally { setRetroBusy(false); }
+    };
+    const handleRetroDisconnect = async () => { await clearRetroCredentials(); setRetroProfile(null); setRetroUsername(''); setRetroKey(''); setRetroFeedback('Credenciais apagadas do cofre deste dispositivo.'); };
 
     useEffect(() => {
       fetch('/api/autostart')
@@ -403,6 +433,8 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           );
         case 'covers':
           return 2; // Save key + Clear key
+        case 'retro':
+          return 2;
         case 'library':
           return isAndroidNative() ? 6 : 4; // Add, Export, Import, Reset (+ Android ROMs/Rescan)
         case 'power':
@@ -421,7 +453,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
         setIsCheckingUpdates(true);
         soundEngine.playMove();
         showToast('Verificando atualizações no GitHub...');
-        const res = await checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.6');
+        const res = await checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.12');
         if (res.hasUpdate && onOpenUpdateModal) {
           soundEngine.playConfirm();
           onOpenUpdateModal(res);
@@ -643,6 +675,10 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
       if (activeCategory === 'covers') {
         if (idx === 0) handleSaveApiKey();
         else handleClearApiKey();
+        return;
+      }
+      if (activeCategory === 'retro') {
+        if (idx === 0) void handleRetroSync(); else void handleRetroDisconnect();
         return;
       }
       if (activeCategory === 'library') {
@@ -1724,6 +1760,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                     Configure sua chave gratuita para buscar capas verticais
                     diretamente pelo nome do jogo ao adicionar ou editar títulos.
                   </p>
+                  <p className="text-xs text-[var(--text-secondary)]">Capas fornecidas por <a href="https://www.steamgriddb.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--text-primary)]" style={{ color: 'var(--accent)' }}>SteamGridDB</a>.</p>
                 </div>
 
                 {/* Campo Grande da API Key */}
@@ -1914,6 +1951,18 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {activeCategory === 'retro' && (
+              <div className="space-y-4 max-w-3xl">
+                <div><h2 className="font-display text-xl font-extrabold text-[var(--text-primary)]">Integração RetroAchievements (Opcional)</h2><p className="text-sm text-[var(--text-secondary)] mt-1">Perfil e conquistas para jogos retrô. As consultas seguem direto para a API oficial.</p></div>
+                <div className="theme-control p-4 border space-y-2 text-sm text-[var(--text-secondary)]" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}><p>Acesse <a className="underline" href="https://retroachievements.org/settings" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>retroachievements.org/settings</a>, abra <strong>Keys</strong> e copie sua Web API Key pessoal.</p><p>A chave é criptografada e fica somente no cofre seguro deste dispositivo.</p></div>
+                {retroProfile && <div className="theme-control p-3 border flex items-center gap-3" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}><img src={`https://retroachievements.org${retroProfile.UserPic}`} alt="" className="w-12 h-12 rounded-full"/><div><strong>{retroProfile.User}</strong><p className="text-xs text-[var(--text-secondary)]">Hardcore {Number(retroProfile.TotalTruePoints||0).toLocaleString()} · Softcore {Number(retroProfile.TotalSoftcorePoints||0).toLocaleString()} · Ranking #{retroProfile.Rank||'—'}</p></div></div>}
+                <label className="block text-sm font-bold">Usuário (Username)<input value={retroUsername} onChange={(e)=>setRetroUsername(e.target.value)} className="theme-control w-full mt-1 px-3 py-2 border" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}/></label>
+                <label className="block text-sm font-bold">RetroAchievements Web API Key<div className="flex gap-2 mt-1"><input type={retroShowKey?'text':'password'} value={retroKey} onChange={(e)=>setRetroKey(e.target.value)} placeholder={retroProfile?'Chave protegida neste dispositivo':'Cole sua chave pessoal'} className="theme-control min-w-0 flex-1 px-3 py-2 border font-mono-tech" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}/><button type="button" onClick={()=>setRetroShowKey((v)=>!v)} className="theme-control px-3 border" style={{borderColor:'var(--border-subtle)'}}>{retroShowKey?<EyeOff className="w-4 h-4"/>:<Eye className="w-4 h-4"/>}</button></div></label>
+                <div className="flex gap-2"><button ref={(el)=>{contentRefs.current[0]=el;}} type="button" disabled={retroBusy} onClick={()=>void handleRetroSync()} className="theme-control px-4 py-2.5 font-bold text-white" style={{backgroundColor:'var(--accent)'}}>{retroBusy?'Validando…':'Testar e Sincronizar'}</button><button ref={(el)=>{contentRefs.current[1]=el;}} type="button" disabled={!retroProfile} onClick={()=>void handleRetroDisconnect()} className="theme-control px-4 py-2.5 border" style={{borderColor:'var(--border-subtle)'}}>Desconectar / Limpar Dados</button></div>
+                {retroFeedback&&<p role="status" className="text-sm text-[var(--text-secondary)]">{retroFeedback}</p>}
               </div>
             )}
 
@@ -2742,7 +2791,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                               Verificar Atualizações
                             </p>
                             <p className="text-sm lg:text-base text-[var(--text-secondary)] mt-0.5 leading-relaxed">
-                              Versão v1.0.6 instalada. Consulta releases oficiais no GitHub e oferece downloads compatíveis.
+                              Versão v1.0.12 instalada. Consulta releases oficiais no GitHub e oferece downloads compatíveis.
                             </p>
                           </div>
                         </div>

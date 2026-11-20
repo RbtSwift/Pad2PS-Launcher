@@ -56,6 +56,7 @@ import {
   ResolvedControllerLayout,
   ScreensaverMode,
   SystemCategory,
+  SteamSyncData,
   ThemeId,
 } from './types';
 import {
@@ -66,10 +67,47 @@ import {
   saveStoredButtonMapping,
 } from './utils/gamepadMapping';
 import { soundEngine } from './utils/sound';
+import { extractSteamAppId, findAutomaticSteamGridDbCover } from './utils/coverSearch';
 
 const GAMES_STORAGE_KEY = 'pad2ps_launcher_games_v1';
 const SETTINGS_STORAGE_KEY = 'pad2ps_launcher_settings_v1';
 const ONBOARDED_STORAGE_KEY = 'pad2ps_launcher_onboarded_v1';
+
+function mergeExternalGames(previous: Game[], scanned: Game[]): Game[] {
+  const matched = new Set<string>();
+  const updated = scanned.map((incoming) => {
+    const saved = previous.find((game) => game.id === incoming.id ||
+      (game.platformLabel === 'Android' && incoming.platformLabel === 'Android' && game.command === incoming.command));
+    if (!saved) return incoming;
+    matched.add(saved.id);
+    const sameAndroidIcon = incoming.isAutomaticCoverFallback && saved.coverUrl === incoming.coverUrl;
+    const savedIsFallback = Boolean(saved.isAutomaticCoverFallback || sameAndroidIcon);
+    const keepSavedCover = Boolean(saved.coverUrl?.trim()) && !savedIsFallback;
+    return {
+      ...incoming,
+      ...saved,
+      title: incoming.title,
+      platform: incoming.platform,
+      platformLabel: incoming.platformLabel,
+      command: incoming.command,
+      coverUrl: saved.isCustomCover || keepSavedCover ? saved.coverUrl : incoming.coverUrl,
+      isCustomCover: Boolean(saved.isCustomCover || incoming.isCustomCover),
+      isAutomaticCoverFallback: saved.isCustomCover || keepSavedCover ? false : incoming.isAutomaticCoverFallback,
+      favorite: Boolean(saved.favorite || incoming.favorite),
+      hoursPlayed: saved.hoursPlayed,
+      lastPlayed: saved.lastPlayed ?? incoming.lastPlayed,
+      steamAppId: incoming.steamAppId ?? saved.steamAppId,
+      steamInstalled: incoming.steamInstalled ?? saved.steamInstalled,
+      steamRemote: incoming.steamRemote ?? saved.steamRemote,
+      steamPlaytimeHours: incoming.steamPlaytimeHours ?? saved.steamPlaytimeHours,
+      steamRecentHours: incoming.steamRecentHours ?? saved.steamRecentHours,
+      steamRecentlyPlayed: incoming.steamRecentlyPlayed ?? saved.steamRecentlyPlayed,
+      steamHeroUrl: incoming.steamHeroUrl ?? saved.steamHeroUrl,
+      steamLogoUrl: incoming.steamLogoUrl ?? saved.steamLogoUrl,
+    };
+  });
+  return [...updated, ...previous.filter((game) => !matched.has(game.id) && !scanned.some((incoming) => incoming.id === game.id))];
+}
 
 const PAGE_ORDER: LauncherPage[] = ['favorites', 'library', 'system'];
 const VALID_THEME_IDS: ThemeId[] = [
@@ -292,6 +330,7 @@ function matchesPlatformFilter(
 }
 
 export default function App() {
+  const connectedGamepadRef = useRef<string | null>(null);
   const [games, setGames] = useState<Game[]>(loadStoredGames);
   const [settings, setSettings] = useState<LauncherSettings>(loadStoredSettings);
 
@@ -318,7 +357,7 @@ export default function App() {
 
   useEffect(() => {
     let isMounted = true;
-    checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.6')
+    checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.12')
       .then((res) => {
         if (isMounted && res.hasUpdate) {
           setUpdateInfo(res);
@@ -351,6 +390,35 @@ export default function App() {
     } catch {
       // ignore quota errors
     }
+  }, [games]);
+
+  // Fill missing covers in the background, with at most three SteamGridDB lookups at once.
+  useEffect(() => {
+    let cancelled = false;
+    const pending = games.filter((game) => (!game.coverUrl?.trim() || game.isAutomaticCoverFallback) && !game.isCustomCover);
+    if (!pending.length) return;
+    void (async () => {
+      const covers = new Map<string, string>();
+      let cursor = 0;
+      const worker = async () => {
+        while (!cancelled) {
+          const game = pending[cursor++];
+          if (!game) return;
+          const cover = await findAutomaticSteamGridDbCover(game.title);
+          if (cover) covers.set(game.id, cover);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(3, pending.length) }, worker));
+      if (!cancelled && covers.size) {
+        setGames((current) => current.map((game) => {
+          const cover = covers.get(game.id);
+          return cover && (!game.coverUrl?.trim() || game.isAutomaticCoverFallback) && !game.isCustomCover
+            ? { ...game, coverUrl: cover, isCustomCover: false, isAutomaticCoverFallback: false }
+            : game;
+        }));
+      }
+    })();
+    return () => { cancelled = true; };
   }, [games]);
 
   // Persist button mapping to localStorage
@@ -552,14 +620,24 @@ export default function App() {
               ? String(item.consoleSystem)
               : undefined,
             coverUrl: String(item.coverUrl || ''),
+            isCustomCover: Boolean(item.isCustomCover),
+            isAutomaticCoverFallback: Boolean(item.isAutomaticCoverFallback),
             command: String(item.command || ''),
+            steamAppId: Number(item.steamAppId || extractSteamAppId(String(item.command || ''))) || undefined,
+            steamInstalled: Boolean(item.steamInstalled || ((item.platform as string) === 'Steam' && /^steam:\/\/rungameid\/\d+/i.test(String(item.command || '')))),
+            steamRemote: Boolean(item.steamRemote),
+            steamPlaytimeHours: Number(item.steamPlaytimeHours) || undefined,
+            steamRecentHours: Number(item.steamRecentHours) || undefined,
+            steamRecentlyPlayed: Boolean(item.steamRecentlyPlayed),
+            steamHeroUrl: item.steamHeroUrl ? String(item.steamHeroUrl) : undefined,
+            steamLogoUrl: item.steamLogoUrl ? String(item.steamLogoUrl) : undefined,
             hoursPlayed: Number(item.hoursPlayed) || 0,
             favorite: Boolean(item.favorite),
             genre: item.genre ? String(item.genre) : undefined,
             lastPlayed: item.lastPlayed ? String(item.lastPlayed) : undefined,
           }));
 
-        setGames(sanitized);
+        setGames((previous) => mergeExternalGames(previous, sanitized));
         setActivePage('library');
         setPlatformFilter('Todos');
         setFocusedFilterIndex(0);
@@ -683,7 +761,7 @@ export default function App() {
     fetch('/api/launch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: game.id, command: game.command }),
+      body: JSON.stringify({ id: game.id, command: game.command, title: game.title, controller: connectedGamepadRef.current || '' }),
     }).catch(() => {});
   }, [activePage]);
 
@@ -748,6 +826,70 @@ export default function App() {
     },
     [editingGame]
   );
+
+  const handleSteamSyncGames = useCallback(async (data: SteamSyncData, includeUninstalled: boolean) => {
+    const ownedById = new Map(data.games.map((game) => [game.appId, game]));
+    const recentIds = new Set(data.recentIds);
+    setGames((previous) => {
+      const matched = new Set<number>();
+      const updated = previous.flatMap((game) => {
+        const appId = Number(game.steamAppId || extractSteamAppId(game.command));
+        const owned = ownedById.get(appId);
+        if (!owned) return game.steamRemote && !data.privateProfile ? [] : [game];
+        matched.add(appId);
+        const installed = Boolean(game.steamInstalled || /^steam:\/\/rungameid\/\d+/i.test(game.command));
+        if (!installed && !includeUninstalled) return game.steamRemote ? [] : [game];
+        return [{
+          ...game,
+          title: installed ? game.title : owned.name,
+          platform: 'Steam' as const,
+          platformLabel: 'Steam',
+          steamAppId: appId,
+          steamInstalled: installed,
+          steamRemote: !installed,
+          steamPlaytimeHours: Math.round((owned.playtimeForever / 60) * 10) / 10,
+          steamRecentHours: Math.round((owned.playtimeTwoWeeks / 60) * 10) / 10,
+          steamRecentlyPlayed: recentIds.has(appId),
+          steamHeroUrl: `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${appId}/library_hero.jpg`,
+          steamLogoUrl: `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${appId}/logo.png`,
+          coverUrl: game.isCustomCover ? game.coverUrl : `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900_2x.jpg`,
+          command: installed ? game.command : `steam://install/${appId}`,
+        }];
+      });
+      if (includeUninstalled) {
+        for (const owned of data.games) {
+          if (matched.has(owned.appId)) continue;
+          updated.push({
+            id: `steam-owned-${owned.appId}`, title: owned.name, platform: 'Steam', platformLabel: 'Steam',
+            coverUrl: `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${owned.appId}/library_600x900_2x.jpg`,
+            command: `steam://install/${owned.appId}`, hoursPlayed: 0, favorite: false,
+            steamAppId: owned.appId, steamInstalled: false, steamRemote: true,
+            steamPlaytimeHours: Math.round((owned.playtimeForever / 60) * 10) / 10,
+            steamRecentHours: Math.round((owned.playtimeTwoWeeks / 60) * 10) / 10,
+            steamRecentlyPlayed: recentIds.has(owned.appId),
+            steamHeroUrl: `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${owned.appId}/library_hero.jpg`,
+            steamLogoUrl: `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${owned.appId}/logo.png`,
+          });
+        }
+      }
+      return updated;
+    });
+  }, []);
+
+  const handleSteamDisconnect = useCallback(() => {
+    setGames((previous) => previous.filter((game) => !game.steamRemote).map((game) => {
+      const { steamAppId: _appId, steamInstalled: _installed, steamRemote: _remote,
+        steamPlaytimeHours: _hours, steamRecentHours: _recentHours, steamRecentlyPlayed: _recent,
+        steamHeroUrl: _hero, steamLogoUrl: _logo, ...rest } = game;
+      return rest;
+    }));
+  }, []);
+
+  const handleAutomaticSteamCover = useCallback((gameId: string, coverUrl: string) => {
+    setGames((previous) => previous.map((game) => game.id === gameId && !game.isCustomCover
+      ? { ...game, coverUrl, isAutomaticCoverFallback: false }
+      : game));
+  }, []);
 
   const handleDeleteGame = useCallback((game: Game) => {
     soundEngine.playCancel();
@@ -1283,6 +1425,7 @@ export default function App() {
       }
     },
   });
+  connectedGamepadRef.current = connectedGamepad;
 
   const detectedLayout = useMemo(
     () => detectGamepadLayout(rawGamepadId),
@@ -1412,6 +1555,8 @@ export default function App() {
             }}
             onSleepMode={() => setIsSleeping(true)}
             onOpenControllerTest={() => setActiveModal('controller-test')}
+            onSteamSyncGames={handleSteamSyncGames}
+            onSteamDisconnected={handleSteamDisconnect}
             onOpenUpdateModal={(info) => {
               setUpdateInfo(info);
               setIsUpdateModalOpen(true);
@@ -1459,6 +1604,7 @@ export default function App() {
               setActiveModal('add-game');
             }}
             onGoToLibrary={() => handleSelectPage('library')}
+            onAutomaticCoverFound={handleAutomaticSteamCover}
           />
         )}
 
@@ -1557,6 +1703,7 @@ export default function App() {
               setActiveModal('edit-game');
             }}
             onDelete={() => handleDeleteGame(selectedGame)}
+            onSaveRetroGameId={(retroGameId) => setGames((previous) => previous.map((game) => game.id === selectedGame.id ? { ...game, retroGameId } : game))}
             onClose={() => {
               soundEngine.playCancel();
               setActiveModal('none');
@@ -1573,7 +1720,7 @@ export default function App() {
             onSelectCover={(coverUrl) => {
               setGames((prev) =>
                 prev.map((g) =>
-                  g.id === selectedGame.id ? { ...g, coverUrl } : g
+                  g.id === selectedGame.id ? { ...g, coverUrl, isCustomCover: true, isAutomaticCoverFallback: false } : g
                 )
               );
               setActiveModal('none');
@@ -1611,6 +1758,7 @@ export default function App() {
             onClose={() => {
               soundEngine.playCancel();
               setLaunchingGame(null);
+              fetch('/api/discord/menu', { method: 'POST' }).catch(() => {});
             }}
           />
         )}

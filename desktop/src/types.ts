@@ -26,6 +26,8 @@ export type SystemCategory =
   | 'appearance'
   | 'controller'
   | 'covers'
+  | 'steam'
+  | 'retro'
   | 'library'
   | 'power';
 
@@ -113,11 +115,30 @@ export interface Game {
   platformLabel?: string;
   consoleSystem?: string;
   coverUrl: string;
+  isCustomCover?: boolean;
+  isAutomaticCoverFallback?: boolean;
+  steamAppId?: number;
+  steamInstalled?: boolean;
+  steamRemote?: boolean;
+  steamPlaytimeHours?: number;
+  steamRecentHours?: number;
+  steamRecentlyPlayed?: boolean;
+  steamHeroUrl?: string;
+  steamLogoUrl?: string;
+  retroGameId?: number;
   command: string;
   hoursPlayed: number;
   favorite: boolean;
   genre?: string;
   lastPlayed?: string;
+}
+
+export interface SteamSyncData {
+  steamId: string;
+  profile: { name: string; avatar: string; profileUrl: string };
+  privateProfile: boolean;
+  games: Array<{ appId: number; name: string; playtimeForever: number; playtimeTwoWeeks: number }>;
+  recentIds: number[];
 }
 
 export interface LauncherSettings {

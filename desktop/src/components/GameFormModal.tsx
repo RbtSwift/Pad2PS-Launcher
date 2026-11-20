@@ -79,7 +79,10 @@ export const GameFormModal: React.FC<GameFormModalProps> = ({
       id, title: title.trim(), platform,
       platformLabel: platformLabel.trim() || (platform === "Emulador" && trimmedConsole ? trimmedConsole : platform === "Outro" ? "PC" : platform),
       consoleSystem: trimmedConsole || undefined,
-      coverUrl: coverUrl.trim(), command: command.trim(),
+      coverUrl: coverUrl.trim(),
+      isCustomCover: Boolean(initialGame?.isCustomCover) || Boolean(coverUrl.trim() && coverUrl.trim() !== (initialGame?.coverUrl ?? "")),
+      isAutomaticCoverFallback: Boolean(initialGame?.isAutomaticCoverFallback) && coverUrl.trim() === (initialGame?.coverUrl ?? ""),
+      command: command.trim(),
       hoursPlayed: Number(Math.max(0, Number.parseFloat(hoursPlayed) || 0).toFixed(1)),
       favorite, genre: genre.trim() || undefined, lastPlayed: initialGame?.lastPlayed ?? "Recente",
     });

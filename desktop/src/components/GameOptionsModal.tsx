@@ -14,6 +14,7 @@ interface GameOptionsModalProps {
   onToggleFavorite: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onSaveRetroGameId: (gameId: number | undefined) => void;
   onClose: () => void;
 }
 
@@ -28,18 +29,41 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
   onToggleFavorite,
   onEdit,
   onDelete,
+  onSaveRetroGameId,
   onClose,
 }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [achievements, setAchievements] = useState<{ unlocked: number; total: number; percentage: number } | null>(null);
+  const [retroProgress, setRetroProgress] = useState<{ title?: string; total: number; unlocked: number; achievements: Array<{ title: string; description: string; points: number }> } | null>(null);
+  const [retroIdInput, setRetroIdInput] = useState(game.retroGameId ? String(game.retroGameId) : '');
 
   useEffect(() => {
     setConfirmDelete(false);
+    setAchievements(null);
+    setRetroIdInput(game.retroGameId ? String(game.retroGameId) : '');
+    const appId = Number(game.steamAppId || game.command.match(/steam:\/\/(?:rungameid|install)\/(\d+)/i)?.[1]);
+    if (!appId || game.steamRemote) return;
+    fetch(`/api/steam/achievements?appId=${appId}`)
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (data?.available) setAchievements(data); })
+      .catch(() => {});
   }, [game.id]);
+
+  useEffect(() => {
+    const id = Number(game.retroGameId);
+    if (!id) { setRetroProgress(null); return; }
+    fetch(`/api/retro/game-progress?gameId=${id}`).then((r) => r.ok ? r.json() : null).then((result) => {
+      const data = result?.data; if (!result?.available || !data) return;
+      const achievements = Object.values(data.Achievements || {}) as Array<{ Title: string; Description: string; Points: number; DateEarned?: string | null; DateEarnedHardcore?: string | null }>;
+      const unlocked = achievements.filter((item) => item.DateEarned || item.DateEarnedHardcore);
+      setRetroProgress({ title: data.Title, total: achievements.length, unlocked: unlocked.length, achievements: unlocked.slice(0, 8).map((item) => ({ title: item.Title, description: item.Description, points: item.Points })) });
+    }).catch(() => {});
+  }, [game.id, game.retroGameId]);
 
   const items = [
     {
       id: 'play',
-      label: 'Iniciar Jogo',
+      label: game.steamRemote ? 'Instalar pela Steam' : 'Iniciar Jogo',
       icon: Play,
       action: onPlay,
       danger: false,
@@ -127,6 +151,20 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {game.steamLogoUrl && <img src={game.steamLogoUrl} alt={`${game.title} logo`} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="max-h-14 max-w-[70%] object-contain mb-3" />}
+        {(typeof game.steamPlaytimeHours === 'number' || achievements) && (
+          <div className="mb-4 p-3 rounded-lg bg-white/5 text-xs text-[var(--text-secondary)] space-y-1">
+            {typeof game.steamPlaytimeHours === 'number' && <p>{game.steamPlaytimeHours.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h jogadas na Steam{game.steamRecentlyPlayed ? ' · jogado nas últimas 2 semanas' : ''}</p>}
+            {achievements && <p>Conquistas: <strong className="text-[var(--text-primary)]">{achievements.unlocked}/{achievements.total} ({achievements.percentage}%)</strong></p>}
+          </div>
+        )}
+
+        <div className="mb-4 p-3 rounded-lg bg-white/5 space-y-2">
+          <label className="block text-xs font-semibold text-[var(--text-secondary)]">GameID do RetroAchievements (jogos retrô)</label>
+          <div className="flex gap-2"><input value={retroIdInput} onChange={(event) => setRetroIdInput(event.target.value.replace(/\D/g,''))} inputMode="numeric" placeholder="Ex.: 12345" className="theme-control min-w-0 flex-1 px-3 py-2 text-sm bg-black/20 text-[var(--text-primary)]"/><button type="button" className="theme-control px-3 py-2 text-xs font-bold bg-[var(--accent)] text-white" onClick={() => onSaveRetroGameId(Number(retroIdInput) || undefined)}>Vincular</button></div>
+          {retroProgress && <div className="space-y-2 text-xs text-[var(--text-secondary)]"><p className="font-bold text-[var(--text-primary)]">{retroProgress.title}: {retroProgress.unlocked}/{retroProgress.total} conquistas</p><progress className="w-full accent-[var(--accent)]" value={retroProgress.unlocked} max={Math.max(1,retroProgress.total)}/>{retroProgress.achievements.map((item) => <p key={item.title}>🏆 {item.title} · {item.points} pts</p>)}</div>}
         </div>
 
         <div className="flex flex-col gap-2">

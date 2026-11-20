@@ -15,6 +15,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(GameScannerPlugin.class);
+        registerPlugin(RetroCredentialsPlugin.class);
         super.onCreate(savedInstanceState);
 
         // Mantem a tela ativa enquanto o launcher estiver aberto

@@ -5,6 +5,7 @@ import {
   ResolvedControllerLayout,
 } from '../types';
 import { DEFAULT_BUTTON_MAPPING } from '../utils/gamepadMapping';
+import { identifyController } from '../utils/controllerDb';
 
 export interface GamepadActions {
   buttonMapping?: GamepadButtonMapping;
@@ -113,6 +114,10 @@ export function useGamepadNavigation(actions: GamepadActions) {
       const firstPad = Array.from(pads).find((p) => p && p.connected);
       setConnectedGamepad(firstPad ? cleanGamepadName(firstPad.id) : null);
       setRawGamepadId(firstPad ? firstPad.id : null);
+      if (firstPad) void identifyController(firstPad.id).then(({ name }) => {
+        const current = Array.from(navigator.getGamepads()).find((pad) => pad && pad.connected);
+        if (current?.id === firstPad.id) { setConnectedGamepad(name); setRawGamepadId(`${firstPad.id} ${name}`); }
+      });
     };
 
     const handleConnect = () => syncGamepadLabel();

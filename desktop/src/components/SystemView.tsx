@@ -7,6 +7,8 @@ import React, {
 } from 'react';
 import {
   AlertTriangle,
+  BadgeCheck,
+  BookOpen,
   Check,
   Clock,
   Download,
@@ -19,6 +21,7 @@ import {
   Images,
   KeyRound,
   Library,
+  Link2,
   Monitor,
   Moon,
   Palette,
@@ -28,6 +31,7 @@ import {
   RotateCcw,
   Save,
   SlidersHorizontal,
+  ShieldCheck,
   Sparkles,
   Trash2,
   Upload,
@@ -43,6 +47,7 @@ import {
   CustomSoundPreset,
   CustomThemeConfig,
   Game,
+  SteamSyncData,
   GamepadButtonMapping,
   IdleTimeoutMinutes,
   LauncherSettings,
@@ -103,6 +108,8 @@ interface SystemViewProps {
   onRestart: () => void;
   onOpenUpdateModal?: (info: UpdateCheckResult) => void;
   onOpenControllerTest?: () => void;
+  onSteamSyncGames: (data: SteamSyncData, includeUninstalled: boolean) => Promise<void>;
+  onSteamDisconnected: () => void;
 }
 
 const CATEGORIES: {
@@ -113,6 +120,8 @@ const CATEGORIES: {
   { id: 'appearance', label: 'Aparência & Temas', icon: Palette },
   { id: 'controller', label: 'Controle & Atalhos', icon: Gamepad2 },
   { id: 'covers', label: 'Capas & API SteamGridDB', icon: ImageIcon },
+  { id: 'steam', label: 'Integração Steam (Opcional)', icon: Link2 },
+  { id: 'retro', label: 'Integração RetroAchievements (Opcional)', icon: BadgeCheck },
   { id: 'library', label: 'Biblioteca & Dados', icon: Library },
   { id: 'power', label: 'Energia & Web Pad2PS', icon: Power },
 ];
@@ -284,6 +293,8 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
       onRestart,
       onOpenUpdateModal,
       onOpenControllerTest,
+      onSteamSyncGames,
+      onSteamDisconnected,
     },
     ref
   ) => {
@@ -305,6 +316,14 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
       getStoredSteamGridDbKey()
     );
     const [showApiKey, setShowApiKey] = useState<boolean>(false);
+    const [steamApiKey, setSteamApiKey] = useState('');
+    const [steamProfileInput, setSteamProfileInput] = useState('');
+    const [showSteamApiKey, setShowSteamApiKey] = useState(false);
+    const [steamBusy, setSteamBusy] = useState(false);
+    const [steamFeedback, setSteamFeedback] = useState<string | null>(null);
+    const [steamConnected, setSteamConnected] = useState(false);
+    const [steamProfile, setSteamProfile] = useState<{name:string;avatar:string;profileUrl:string}|null>(null);
+    const [includeUninstalledSteamGames, setIncludeUninstalledSteamGames] = useState(() => localStorage.getItem('pad2ps_steam_show_uninstalled') === 'true');
     const [customImageUrlInput, setCustomImageUrlInput] = useState<string>(
       () =>
         settings.screensaverCustomImage.startsWith('data:')
@@ -315,6 +334,89 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
     const [feedback, setFeedback] = useState<string | null>(null);
     const [exportingLogo, setExportingLogo] = useState(false);
     const [autostartEnabled, setAutostartEnabled] = useState<boolean>(false);
+    const [discordPresenceEnabled, setDiscordPresenceEnabled] = useState(true);
+    const [discordPresenceConfigured, setDiscordPresenceConfigured] = useState(false);
+    const [retroUsername, setRetroUsername] = useState('');
+    const [retroKey, setRetroKey] = useState('');
+    const [retroShowKey, setRetroShowKey] = useState(false);
+    const [retroBusy, setRetroBusy] = useState(false);
+    const [retroFeedback, setRetroFeedback] = useState('');
+    const [retroProfile, setRetroProfile] = useState<{username:string;avatar:string;points:number;softcorePoints:number;hardcorePoints:number;rank:number}|null>(null);
+
+    useEffect(() => {
+      fetch('/api/steam/config')
+        .then((response) => response.ok ? response.json() : null)
+        .then((data) => {
+          if (!data) return;
+          setSteamConnected(Boolean(data.configured));
+          setSteamProfileInput(String(data.steamId || ''));
+          setSteamProfile(data.profile || null);
+        })
+        .catch(() => {});
+    }, []);
+
+    const handleSteamSync = async () => {
+      if (!steamApiKey.trim() || !steamProfileInput.trim()) {
+        setFeedback('Informe a Steam Web API Key e o SteamID64 ou link do perfil.');
+        return;
+      }
+      setSteamBusy(true);
+      setSteamFeedback('Conectando diretamente à API oficial da Steam…');
+      try {
+        const response = await fetch('/api/steam/sync', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey: steamApiKey, profileInput: steamProfileInput }),
+        });
+        const result = await response.json() as SteamSyncData & { error?: string };
+        if (!response.ok) throw new Error(result.error || 'Não foi possível conectar à Steam.');
+        await onSteamSyncGames(result, includeUninstalledSteamGames);
+        setSteamConnected(true);
+        setSteamProfile(result.profile);
+        setSteamProfileInput(result.steamId);
+        setSteamApiKey('');
+        setSteamFeedback(result.privateProfile
+          ? 'Perfil conectado. Os detalhes dos jogos estão privados; torne-os públicos nas configurações de privacidade da Steam para sincronizar biblioteca, horas e conquistas.'
+          : `${result.games.length} jogos sincronizados com ${result.profile.name}.`);
+      } catch (error) {
+        setSteamFeedback(error instanceof Error ? error.message : 'Falha ao sincronizar a Steam.');
+      } finally { setSteamBusy(false); }
+    };
+
+    const handleSteamDisconnect = async () => {
+      setSteamBusy(true);
+      try {
+        await fetch('/api/steam/disconnect', { method: 'POST' });
+        onSteamDisconnected();
+        setSteamConnected(false);
+        setSteamProfile(null);
+        setSteamProfileInput('');
+        setSteamApiKey('');
+        setSteamFeedback('Credenciais removidas do cofre local e dados Steam removidos da biblioteca.');
+      } catch { setSteamFeedback('Não foi possível limpar os dados Steam.'); }
+      finally { setSteamBusy(false); }
+    };
+
+    const handleRetroSync = async () => {
+      setRetroBusy(true); setRetroFeedback('Validando diretamente no RetroAchievements…');
+      try {
+        const response = await fetch('/api/retro/sync', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ username:retroUsername, key:retroKey }) });
+        const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Falha ao validar conta.');
+        setRetroProfile(result); setRetroUsername(result.username); setRetroKey(''); setRetroFeedback('Conta conectada. A chave foi criptografada no cofre local.');
+      } catch (error) { setRetroFeedback(error instanceof Error ? error.message : 'Não foi possível conectar.'); } finally { setRetroBusy(false); }
+    };
+    const handleRetroDisconnect = async () => {
+      await fetch('/api/retro/disconnect', { method:'POST' }); setRetroProfile(null); setRetroUsername(''); setRetroKey(''); setRetroFeedback('Dados e credenciais removidos deste computador.');
+    };
+
+    useEffect(() => {
+      fetch('/api/retro/config').then((r) => r.ok ? r.json() : null).then((data) => { if (data?.configured) { setRetroUsername(data.username || ''); setRetroProfile(data.profile || null); } }).catch(() => {});
+    }, []);
+
+    useEffect(() => {
+      fetch('/api/discord/config').then((r) => r.ok ? r.json() : null).then((data) => {
+        if (data) { setDiscordPresenceEnabled(data.enabled !== false); setDiscordPresenceConfigured(Boolean(data.configured)); }
+      }).catch(() => {});
+    }, []);
 
     useEffect(() => {
       fetch('/api/autostart')
@@ -399,6 +501,10 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           );
         case 'covers':
           return 2; // Save key + Clear key
+        case 'steam':
+          return 2; // Connect/sync and disconnect
+        case 'retro':
+          return 2;
         case 'library':
           return 4; // Add, Export, Import, Reset
         case 'power':
@@ -417,7 +523,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
         setIsCheckingUpdates(true);
         soundEngine.playMove();
         showToast('Verificando atualizações no GitHub...');
-        const res = await checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.6');
+        const res = await checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.12');
         if (res.hasUpdate && onOpenUpdateModal) {
           soundEngine.playConfirm();
           onOpenUpdateModal(res);
@@ -426,7 +532,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           showToast('Não foi possível verificar atualizações. Sem conexão.');
         } else {
           soundEngine.playConfirm();
-          showToast('O Pad2PS Launcher está atualizado (v1.0.6)!');
+          showToast('O Pad2PS Launcher está atualizado (v1.0.12)!');
         }
       } catch {
         showToast('Erro ao verificar atualizações.');
@@ -660,6 +766,15 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
       if (activeCategory === 'covers') {
         if (idx === 0) handleSaveApiKey();
         else handleClearApiKey();
+        return;
+      }
+      if (activeCategory === 'steam') {
+        if (idx === 0) void handleSteamSync();
+        else if (idx === 1) void handleSteamDisconnect();
+        return;
+      }
+      if (activeCategory === 'retro') {
+        if (idx === 0) void handleRetroSync(); else void handleRetroDisconnect();
         return;
       }
       if (activeCategory === 'library') {
@@ -1734,6 +1849,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                     Configure sua chave gratuita para buscar capas verticais
                     diretamente pelo nome do jogo ao adicionar ou editar títulos.
                   </p>
+                  <p className="text-xs text-[var(--text-secondary)]">Capas fornecidas por <a href="https://www.steamgriddb.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--text-primary)]" style={{ color: 'var(--accent)' }}>SteamGridDB</a>.</p>
                 </div>
 
                 {/* Campo Grande da API Key */}
@@ -1927,6 +2043,74 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
               </div>
             )}
 
+            {activeCategory === 'steam' && (
+              <div className="space-y-5 max-w-4xl">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-display text-xl lg:text-2xl font-extrabold text-[var(--text-primary)]">Integração Steam (Opcional)</h2>
+                    {steamConnected && <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-300">Conectada</span>}
+                  </div>
+                  <p className="text-sm text-[var(--text-secondary)] mt-1">Sincronize sua biblioteca, horas jogadas, jogos recentes e conquistas usando a Steam Web API oficial.</p>
+                </div>
+
+                <div className="theme-control p-4 border flex items-start gap-3" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}>
+                  <ShieldCheck className="w-5 h-5 mt-0.5 shrink-0" style={{color:'var(--accent)'}} />
+                  <div className="space-y-1 text-sm text-[var(--text-secondary)]">
+                    <p className="font-bold text-[var(--text-primary)]">Duas APIs diferentes</p>
+                    <p>Esta integração usa a chave oficial da <strong className="text-[var(--text-primary)]">Steam</strong> (steamcommunity.com). Ela é diferente da SteamGridDB, que já busca capas automaticamente sem configuração.</p>
+                    <p>A chave e o SteamID ficam criptografados no cofre do sistema neste computador. As consultas seguem diretamente do Launcher para <code>api.steampowered.com</code>; nenhum servidor do Pad2PS recebe essas credenciais.</p>
+                  </div>
+                </div>
+
+                {steamProfile && (
+                  <a href={steamProfile.profileUrl} target="_blank" rel="noopener noreferrer" className="theme-control p-3 border flex items-center gap-3 w-fit" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}>
+                    <img src={steamProfile.avatar} alt="" className="w-12 h-12 rounded-full" />
+                    <span><strong className="block text-[var(--text-primary)]">{steamProfile.name}</strong><span className="text-xs text-[var(--text-secondary)]">Perfil Steam conectado</span></span>
+                  </a>
+                )}
+
+                <details className="theme-control p-4 border" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}>
+                  <summary className="cursor-pointer font-bold text-[var(--text-primary)]">Como obter minha Steam Web API Key e SteamID?</summary>
+                  <div className="mt-3 space-y-3 text-sm text-[var(--text-secondary)]">
+                    <p><strong className="text-[var(--text-primary)]">Passo 1 — Gerar a chave oficial da Steam:</strong> acesse <a className="underline" style={{color:'var(--accent)'}} href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener noreferrer">steamcommunity.com/dev/apikey</a>, entre na Steam, informe um nome de domínio como <code>localhost</code> e copie a chave. Não use uma chave da SteamGridDB neste campo.</p>
+                    <p><strong className="text-[var(--text-primary)]">Passo 2 — Encontrar o SteamID64:</strong> cole a URL do perfil, como <code>https://steamcommunity.com/id/seunome</code>, ou o SteamID64 de 17 dígitos. O Launcher resolve o link personalizado automaticamente.</p>
+                    <p><strong className="text-[var(--text-primary)]">Passo 3 — Tornar os detalhes públicos:</strong> nas configurações de privacidade do perfil Steam, defina <em>Detalhes dos jogos</em> como <strong className="text-[var(--text-primary)]">Pública</strong> para sincronizar biblioteca, horas e conquistas.</p>
+                  </div>
+                </details>
+
+                <div className="space-y-3">
+                  <label className="block text-sm font-bold text-[var(--text-primary)]" htmlFor="steam-web-api-key">Steam Web API Key</label>
+                  <div className="flex gap-2">
+                    <input id="steam-web-api-key" type={showSteamApiKey ? 'text' : 'password'} value={steamApiKey} onChange={(event) => setSteamApiKey(event.target.value)} placeholder={steamConnected ? 'Chave salva e criptografada neste computador' : 'Cole sua chave oficial da Steam'} className="theme-control min-w-0 flex-1 px-3 py-2 border font-mono-tech text-sm text-[var(--text-primary)]" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}} />
+                    <button type="button" onClick={() => setShowSteamApiKey((visible) => !visible)} className="theme-control px-3 border text-[var(--text-secondary)]" style={{borderColor:'var(--border-subtle)'}}>{showSteamApiKey ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}</button>
+                  </div>
+                  <label className="block text-sm font-bold text-[var(--text-primary)]" htmlFor="steam-profile-id">SteamID64 ou URL do Perfil Steam</label>
+                  <input id="steam-profile-id" value={steamProfileInput} onChange={(event) => setSteamProfileInput(event.target.value)} placeholder="7656119… ou https://steamcommunity.com/id/seunome" className="theme-control w-full px-3 py-2 border text-sm text-[var(--text-primary)]" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}} />
+                  <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)] cursor-pointer">
+                    <input type="checkbox" checked={includeUninstalledSteamGames} onChange={(event) => { const value = event.target.checked; setIncludeUninstalledSteamGames(value); localStorage.setItem('pad2ps_steam_show_uninstalled', String(value)); }} className="accent-[var(--accent)]" />
+                    Mostrar também jogos da conta que não estão instalados neste PC
+                  </label>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button ref={(element) => { contentRefs.current[0] = element; }} type="button" disabled={steamBusy} onClick={() => void handleSteamSync()} className="theme-control inline-flex items-center gap-2 px-4 py-2.5 font-bold text-white disabled:opacity-50" style={{backgroundColor:'var(--accent)',boxShadow:'var(--accent-glow)'}}><RefreshCw className={`w-4 h-4 ${steamBusy ? 'animate-spin' : ''}`}/>{steamBusy ? 'Sincronizando…' : 'Testar e Sincronizar'}</button>
+                    <button ref={(element) => { contentRefs.current[1] = element; }} type="button" disabled={steamBusy || !steamConnected} onClick={() => void handleSteamDisconnect()} className="theme-control inline-flex items-center gap-2 px-4 py-2.5 border text-[var(--text-secondary)] disabled:opacity-50" style={{borderColor:'var(--border-subtle)'}}><Trash2 className="w-4 h-4"/>Desconectar / Limpar Dados</button>
+                  </div>
+                  {steamFeedback && <p role="status" className="text-sm text-[var(--text-secondary)]">{steamFeedback}</p>}
+                </div>
+              </div>
+            )}
+
+            {activeCategory === 'retro' && (
+              <div className="space-y-5 max-w-4xl">
+                <div><h2 className="font-display text-xl lg:text-2xl font-extrabold text-[var(--text-primary)]">Integração RetroAchievements (Opcional)</h2><p className="text-sm text-[var(--text-secondary)] mt-1">Perfil e progresso de conquistas para jogos retrô.</p></div>
+                <div className="theme-control p-4 border space-y-2 text-sm text-[var(--text-secondary)]" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}><p>As consultas vão diretamente para a API oficial do RetroAchievements. As credenciais ficam criptografadas no cofre local deste computador.</p><p>Abra <a className="underline" href="https://retroachievements.org/settings" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>retroachievements.org/settings</a>, encontre a seção <strong>Keys</strong> e copie sua Web API Key pessoal.</p></div>
+                {retroProfile && <div className="theme-control p-3 border flex items-center gap-3 w-fit" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}><img src={retroProfile.avatar} alt="" className="w-12 h-12 rounded-full"/><div><strong className="text-[var(--text-primary)]">{retroProfile.username}</strong><p className="text-xs text-[var(--text-secondary)]">Hardcore {retroProfile.hardcorePoints.toLocaleString()} · Softcore {retroProfile.softcorePoints.toLocaleString()} · Ranking #{retroProfile.rank || '—'}</p></div></div>}
+                <label className="block text-sm font-bold text-[var(--text-primary)]">Usuário (Username)<input value={retroUsername} onChange={(event)=>setRetroUsername(event.target.value)} className="theme-control w-full mt-1 px-3 py-2 border text-sm" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}/></label>
+                <label className="block text-sm font-bold text-[var(--text-primary)]">RetroAchievements Web API Key<div className="flex gap-2 mt-1"><input type={retroShowKey?'text':'password'} value={retroKey} onChange={(event)=>setRetroKey(event.target.value)} placeholder={retroProfile?'Chave protegida e salva neste computador':'Cole sua chave pessoal'} className="theme-control min-w-0 flex-1 px-3 py-2 border font-mono-tech text-sm" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}/><button type="button" onClick={()=>setRetroShowKey((v)=>!v)} className="theme-control px-3 border" style={{borderColor:'var(--border-subtle)'}}>{retroShowKey?<EyeOff className="w-4 h-4"/>:<Eye className="w-4 h-4"/>}</button></div></label>
+                <div className="flex flex-wrap gap-2"><button ref={(el)=>{contentRefs.current[0]=el;}} type="button" disabled={retroBusy} onClick={()=>void handleRetroSync()} className="theme-control px-4 py-2.5 font-bold text-white" style={{backgroundColor:'var(--accent)'}}>{retroBusy?'Validando…':'Testar e Sincronizar'}</button><button ref={(el)=>{contentRefs.current[1]=el;}} type="button" disabled={!retroProfile} onClick={()=>void handleRetroDisconnect()} className="theme-control px-4 py-2.5 border text-[var(--text-secondary)]" style={{borderColor:'var(--border-subtle)'}}>Desconectar / Limpar Dados</button></div>
+                {retroFeedback && <p role="status" className="text-sm text-[var(--text-secondary)]">{retroFeedback}</p>}
+              </div>
+            )}
+
             {/* 4. Biblioteca & Dados */}
             {activeCategory === 'library' && (
               <div className="space-y-4">
@@ -2060,6 +2244,15 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                     energia.
                   </p>
                 </div>
+
+                <label className="theme-control p-4 border flex items-center justify-between gap-4 cursor-pointer" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}>
+                  <span><strong className="block text-[var(--text-primary)]">Discord Rich Presence</strong><span className="text-sm text-[var(--text-secondary)]">{discordPresenceConfigured ? 'Mostra se você está navegando ou jogando.' : 'Defina DISCORD_CLIENT_ID para ativar a comunicação com o Discord local.'}</span></span>
+                  <input type="checkbox" checked={discordPresenceEnabled} onChange={(event) => {
+                    const enabled = event.target.checked; setDiscordPresenceEnabled(enabled);
+                    fetch('/api/discord/config', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled}) })
+                      .then((r) => r.ok ? r.json() : null).then((data) => { if (data) setDiscordPresenceConfigured(Boolean(data.configured)); }).catch(() => {});
+                  }} className="accent-[var(--accent)]" />
+                </label>
 
                 {/* Ações Rápidas: Site Oficial & Ativar Descanso */}
                 <div className="flex flex-col gap-3">
@@ -2715,7 +2908,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                               Verificar Atualizações
                             </p>
                             <p className="text-sm lg:text-base text-[var(--text-secondary)] mt-0.5 leading-relaxed">
-                              Versão v1.0.6 instalada. Consulta releases oficiais no GitHub e oferece downloads compatíveis.
+                              Versão v1.0.12 instalada. Consulta releases oficiais no GitHub e oferece downloads compatíveis.
                             </p>
                           </div>
                         </div>
