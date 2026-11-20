@@ -28,7 +28,7 @@ let httpServer = null;
 let mainWindow = null;
 let allowQuit = false;
 let quitDialogOpen = false;
-const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || 'YOUR_DISCORD_CLIENT_ID';
+const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '1573131919728582806';
 let discordRpc = null;
 let discordRpcReady = false;
 let discordActivity = { game: '', controller: '', startedAt: Date.now() };
@@ -50,7 +50,7 @@ function updateDiscordPresence() {
     }
     if (!discordRpcReady) return;
     const playing = Boolean(discordActivity.game);
-    discordRpc.setActivity({ details: playing ? `Jogando ${discordActivity.game}` : 'Navegando na biblioteca • Pad2PS Launcher', state: discordActivity.controller ? `Com controle ${discordActivity.controller}` : 'Pad2PS Launcher', startTimestamp: discordActivity.startedAt, largeImageKey: 'pad2ps', largeImageText: 'Pad2PS Launcher', instance: false });
+    discordRpc.setActivity({ details: playing ? `Jogando ${discordActivity.game}` : 'Navegando na biblioteca • Pad2PS Launcher', state: discordActivity.controller ? `Com controle ${discordActivity.controller}` : 'Pad2PS Launcher', startTimestamp: discordActivity.startedAt, largeImageKey: 'logo', largeImageText: 'Pad2PS Launcher', instance: false });
   } catch { discordRpcReady = false; }
 }
 function setDiscordGame(game, controller = '') { discordActivity = { game: String(game || ''), controller: String(controller || ''), startedAt: Date.now() }; updateDiscordPresence(); }
