@@ -29,6 +29,8 @@ export interface GameScannerPlugin {
   clearRomFolder(): Promise<{ ok: boolean }>;
   launchGame(options: { packageName?: string; uri?: string; command?: string }): Promise<{ ok: boolean }>;
   getDeviceStatus(): Promise<{ devices: Array<{ name: string; type: string; percentage: number; charging: boolean }> }>;
+  openHomeSettings(): Promise<{ ok: boolean }>;
+  steamGridDbRequest(options: { kind: string; query?: string; gameId?: number; dimensions?: string }): Promise<Record<string, unknown>>;
 }
 
 export const GameScanner = registerPlugin<GameScannerPlugin>('GameScanner');
@@ -102,6 +104,24 @@ export function installAndroidFetchInterceptor() {
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
 
+    if (url.startsWith('/api/steamgriddb/')) {
+      try {
+        const parsed = new URL(url, window.location.href);
+        const kind = parsed.pathname.split('/').pop() || '';
+        const result = await GameScanner.steamGridDbRequest({
+          kind,
+          query: parsed.searchParams.get('q') || undefined,
+          gameId: Number(parsed.searchParams.get('gameId')) || undefined,
+          dimensions: parsed.searchParams.get('dimensions') || undefined,
+        });
+        const status = Number(result.httpStatus) || 200;
+        delete result.httpStatus;
+        return new Response(JSON.stringify(result), { status, headers: { 'Content-Type': 'application/json' } });
+      } catch (error) {
+        return new Response(JSON.stringify({ success: false, errors: [String(error)] }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+      }
+    }
+
     if (url.startsWith('/api/games')) {
       try {
         const res = await GameScanner.getInstalledGames();
@@ -163,6 +183,15 @@ export function installAndroidFetchInterceptor() {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
+    }
+
+    if (url.startsWith('/api/home-settings')) {
+      try {
+        await GameScanner.openHomeSettings();
+        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: String(error) }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      }
     }
 
     if (url.startsWith('/api/save')) {

@@ -35,8 +35,11 @@ jobs:
         working-directory: desktop
         env:
           STEAMGRIDDB_API_KEY: ${{ secrets.STEAMGRIDDB_API_KEY }}
+          IGDB_CLIENT_ID: ${{ secrets.IGDB_CLIENT_ID }}
+          IGDB_CLIENT_SECRET: ${{ secrets.IGDB_CLIENT_SECRET }}
         run: |
           npm ci
+          node -e 'require("fs").writeFileSync("steamgriddb-secret.cjs", "module.exports = " + JSON.stringify({ STEAMGRIDDB_API_KEY: process.env.STEAMGRIDDB_API_KEY || "", IGDB_CLIENT_ID: process.env.IGDB_CLIENT_ID || "", IGDB_CLIENT_SECRET: process.env.IGDB_CLIENT_SECRET || "" }) + ";")'
           npm run build
           npx electron-builder --linux AppImage --publish never
 
@@ -128,8 +131,11 @@ jobs:
         working-directory: desktop
         env:
           STEAMGRIDDB_API_KEY: ${{ secrets.STEAMGRIDDB_API_KEY }}
+          IGDB_CLIENT_ID: ${{ secrets.IGDB_CLIENT_ID }}
+          IGDB_CLIENT_SECRET: ${{ secrets.IGDB_CLIENT_SECRET }}
         run: |
           npm ci
+          node -e 'require("fs").writeFileSync("steamgriddb-secret.cjs", "module.exports = " + JSON.stringify({ STEAMGRIDDB_API_KEY: process.env.STEAMGRIDDB_API_KEY || "", IGDB_CLIENT_ID: process.env.IGDB_CLIENT_ID || "", IGDB_CLIENT_SECRET: process.env.IGDB_CLIENT_SECRET || "" }) + ";")'
           npm run build
           npx electron-builder --win nsis portable --publish never
 
@@ -164,6 +170,8 @@ jobs:
         working-directory: android
         env:
           STEAMGRIDDB_API_KEY: ${{ secrets.STEAMGRIDDB_API_KEY }}
+          IGDB_CLIENT_ID: ${{ secrets.IGDB_CLIENT_ID }}
+          IGDB_CLIENT_SECRET: ${{ secrets.IGDB_CLIENT_SECRET }}
         run: |
           npm ci
           npm run build

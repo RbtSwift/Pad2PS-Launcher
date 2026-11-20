@@ -16,6 +16,7 @@ import android.net.Uri;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.provider.DocumentsContract;
+import android.provider.Settings;
 import android.util.Base64;
 import android.webkit.MimeTypeMap;
 
@@ -30,6 +31,11 @@ import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.io.ByteArrayOutputStream;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -43,8 +49,78 @@ import java.util.Set;
 @CapacitorPlugin(name = "GameScanner")
 public class GameScannerPlugin extends Plugin {
 
+    @PluginMethod
+    public void steamGridDbRequest(PluginCall call) {
+        String kind = call.getString("kind", "");
+        String query = call.getString("query", "");
+        int gameId = call.getInt("gameId", 0);
+        String dimensions = call.getString("dimensions", "");
+        String apiPath;
+        if ("search".equals(kind) && query != null && !query.trim().isEmpty()) {
+            try { apiPath = "/search/autocomplete/" + java.net.URLEncoder.encode(query.trim(), "UTF-8"); }
+            catch (Exception error) { call.reject("Consulta inválida.", error); return; }
+        } else if ("grids".equals(kind) && gameId > 0) {
+            apiPath = "/grids/game/" + gameId + (dimensions != null && !dimensions.isEmpty() ? "?dimensions=" + dimensions + "&nsfw=false&humor=false" : "?nsfw=false&humor=false");
+        } else if ("heroes".equals(kind) && gameId > 0) {
+            apiPath = "/heroes/game/" + gameId + "?nsfw=false&humor=false";
+        } else { call.reject("Consulta SteamGridDB inválida."); return; }
+
+        final String requestPath = apiPath;
+        getActivity().runOnUiThread(() -> new Thread(() -> {
+            HttpURLConnection connection = null;
+            try {
+                String key = BuildConfig.STEAMGRIDDB_API_KEY;
+                if (key == null || key.trim().isEmpty()) throw new IllegalStateException("SteamGridDB não configurado neste build.");
+                connection = (HttpURLConnection) new URL("https://www.steamgriddb.com/api/v2" + requestPath).openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(10000);
+                connection.setReadTimeout(15000);
+                connection.setRequestProperty("Authorization", "Bearer " + key);
+                connection.setRequestProperty("Accept", "application/json");
+                int status = connection.getResponseCode();
+                InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
+                StringBuilder body = new StringBuilder();
+                if (stream != null) {
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, java.nio.charset.StandardCharsets.UTF_8))) {
+                        String line; while ((line = reader.readLine()) != null) body.append(line);
+                    }
+                }
+                JSObject result = new JSObject(body.length() > 0 ? body.toString() : "{}");
+                result.put("httpStatus", status);
+                call.resolve(result);
+            } catch (Exception error) { call.reject(error.getMessage() == null ? "Falha ao consultar SteamGridDB." : error.getMessage(), error); }
+            finally { if (connection != null) connection.disconnect(); }
+        }).start());
+    }
+
+    @PluginMethod
+    public void openHomeSettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(Settings.ACTION_HOME_SETTINGS);
+            if (intent.resolveActivity(getContext().getPackageManager()) == null) {
+                intent = new Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS);
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve(new JSObject().put("ok", true));
+        } catch (Exception error) {
+            call.reject("Não foi possível abrir a configuração de aplicativo de início padrão.", error);
+        }
+    }
+
     private static final String PREFS_NAME = "pad2ps_launcher_android_prefs";
     private static final String KEY_ROM_TREE_URI = "rom_tree_uri";
+
+    private static boolean isExcludedApplication(String packageName, String title) {
+        String pkg = packageName == null ? "" : packageName.toLowerCase(Locale.ROOT);
+        String name = title == null ? "" : title.trim().toLowerCase(Locale.ROOT);
+        String combined = pkg + " " + name;
+        String[] exactNames = {"steam", "epic games", "epic games store", "epic games launcher", "ubisoft connect", "ea app", "origin", "gog galaxy", "battle.net", "rockstar games launcher", "heroic", "lutris", "play store", "google play store", "aurora store", "f-droid"};
+        for (String blocked : exactNames) if (name.equals(blocked)) return true;
+        String[] utilityTerms = {"steamworks common redistributables", "vcredist", "visual c++ redistributable", "directx setup", "directx runtime", "proton easyanticheat", "proton experimental"};
+        for (String blocked : utilityTerms) if (combined.contains(blocked)) return true;
+        return pkg.contains("epicgameslauncher") || pkg.contains("ubisoftconnect") || pkg.contains("eadesktop") || pkg.contains("goggalaxy") || pkg.contains("battlenet") || pkg.contains("rockstar") || pkg.contains("com.valvesoftware.android.steam") || pkg.contains("org.fdroid.fdroid") || pkg.contains("com.android.vending");
+    }
 
     private static final Set<String> EMULATOR_PACKAGES = new HashSet<>(Arrays.asList(
             "org.ppsspp.ppsspp",
@@ -108,6 +184,7 @@ public class GameScannerPlugin extends Plugin {
             if (pm.getLaunchIntentForPackage(pkg) == null) continue;
 
             String title = pm.getApplicationLabel(app).toString();
+            if (isExcludedApplication(pkg, title)) continue;
             if (isEmulator) {
                 installedEmulators.put(pkg.toLowerCase(Locale.ROOT), pkg);
             }

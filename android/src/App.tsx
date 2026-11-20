@@ -66,10 +66,20 @@ import {
 } from './utils/gamepadMapping';
 import { soundEngine } from './utils/sound';
 import { findAutomaticSteamGridDbCover } from './utils/coverSearch';
+import { GameScanner, isAndroidNative, listAndroidLaunchableApps, type AndroidLaunchableApp } from './utils/androidBridge';
 
 const GAMES_STORAGE_KEY = 'pad2ps_launcher_games_v1';
 const SETTINGS_STORAGE_KEY = 'pad2ps_launcher_settings_v1';
 const ONBOARDED_STORAGE_KEY = 'pad2ps_launcher_onboarded_v1';
+const HIDDEN_GAMES_STORAGE_KEY = 'pad2ps_launcher_hidden_game_ids_v1';
+const NON_GAME_TITLE_NAMES = ['steam', 'epic games launcher', 'epic games', 'ubisoft connect', 'ea app', 'origin', 'gog galaxy', 'battle.net', 'battle net', 'rockstar games launcher', 'heroic', 'lutris', 'play store', 'google play store', 'aurora store', 'f-droid', 'steamworks common redistributables'];
+const NON_GAME_COMPONENTS = ['directx setup', 'directx runtime', 'vcredist', 'visual c++ redistributable', 'steamworks common redistributables', 'proton experimental', 'proton easyanticheat'];
+function isNonGameEntry(item: { title?: unknown; command?: unknown; platformLabel?: unknown }): boolean {
+  const title = String(item.title ?? '').trim().toLocaleLowerCase();
+  const command = String(item.command ?? '').toLocaleLowerCase();
+  return NON_GAME_TITLE_NAMES.includes(title) || NON_GAME_COMPONENTS.some((name) => title.includes(name) || command.includes(name)) || /(?:^|[\/])(?:steam|epicgameslauncher|ubisoftconnect|eadesktop|origin|goggalaxy|battlenet|rockstar|heroic|lutris|com\.android\.vending|org\.fdroid)[\/._-]/i.test(command);
+}
+function loadHiddenGameIds(): string[] { try { const raw = JSON.parse(localStorage.getItem(HIDDEN_GAMES_STORAGE_KEY) || '[]'); return Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string') : []; } catch { return []; } }
 
 function mergeExternalGames(previous: Game[], scanned: Game[]): Game[] {
   const matched = new Set<string>();
@@ -214,9 +224,7 @@ function loadStoredGames(): Game[] {
     const raw = localStorage.getItem(GAMES_STORAGE_KEY);
     if (!raw) return DEFAULT_GAMES;
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
-    }
+    if (Array.isArray(parsed)) return parsed.filter((game) => game && !isNonGameEntry(game) && !/^(cyber-drift-2099|elden-spire-shadowfall|neon-odyssey-zero|chronicles-of-valoria|apex-horizon-motorsport|shadow-of-the-colossus-ps2|gran-turismo-4-spec|starlight-tactics)$/.test(String(game.id || '')));
   } catch {
     // fallback to defaults
   }
@@ -323,6 +331,24 @@ function matchesPlatformFilter(
 
 export default function App() {
   const [games, setGames] = useState<Game[]>(loadStoredGames);
+  const [hiddenGameIds, setHiddenGameIds] = useState<string[]>(loadHiddenGameIds);
+  const [storePickerOpen, setStorePickerOpen] = useState(false);
+  const [storeApps, setStoreApps] = useState<AndroidLaunchableApp[]>([]);
+  const [storePickerError, setStorePickerError] = useState('');
+
+  const handleStoreShortcut = useCallback(async () => {
+    if (!isAndroidNative()) return;
+    const savedPackage = localStorage.getItem('pad2ps_android_store_package') || '';
+    if (savedPackage) {
+      try { await GameScanner.launchGame({ packageName: savedPackage }); return; } catch { localStorage.removeItem('pad2ps_android_store_package'); }
+    }
+    try {
+      const apps = await listAndroidLaunchableApps();
+      setStoreApps(apps);
+      setStorePickerError(apps.length ? '' : 'Nenhum aplicativo iniciável foi encontrado.');
+      setStorePickerOpen(true);
+    } catch { setStorePickerError('Não foi possível carregar os aplicativos instalados.'); setStorePickerOpen(true); }
+  }, []);
   const [settings, setSettings] = useState<LauncherSettings>(loadStoredSettings);
 
   // Page 2 (Biblioteca de Jogos) is the initial home page
@@ -382,6 +408,8 @@ export default function App() {
       // ignore quota errors
     }
   }, [games]);
+
+  useEffect(() => { try { localStorage.setItem(HIDDEN_GAMES_STORAGE_KEY, JSON.stringify(hiddenGameIds)); } catch { /* storage is optional */ } }, [hiddenGameIds]);
 
   // Fill missing covers in the background, with at most three SteamGridDB lookups at once.
   useEffect(() => {
@@ -600,6 +628,7 @@ export default function App() {
               typeof item === 'object' &&
               typeof (item as Record<string, unknown>).title === 'string'
           )
+          .filter((item) => !isNonGameEntry(item as Record<string, unknown>))
           .map((item, idx) => ({
             id: String(item.id || `ext-${Date.now()}-${idx}`),
             title: String(item.title),
@@ -648,14 +677,11 @@ export default function App() {
   }, []);
 
   const visibleGames = useMemo(() => {
-    if (activePage === 'favorites') {
-      return games.filter((g) => g.favorite);
-    }
-    if (activePage === 'library') {
-      return games.filter((g) => matchesPlatformFilter(g, platformFilter));
-    }
-    return games;
-  }, [games, activePage, platformFilter]);
+    const availableGames = games.filter((game) => !hiddenGameIds.includes(game.id));
+    if (activePage === 'favorites') return availableGames.filter((game) => game.favorite);
+    if (activePage === 'library') return availableGames.filter((game) => matchesPlatformFilter(game, platformFilter));
+    return availableGames;
+  }, [games, hiddenGameIds, activePage, platformFilter]);
 
   const maxCarouselSlots =
     activePage === 'library'
@@ -822,9 +848,11 @@ export default function App() {
 
   const handleDeleteGame = useCallback((game: Game) => {
     soundEngine.playCancel();
-    setGames((prev) => prev.filter((g) => g.id !== game.id));
+    setHiddenGameIds((prev) => prev.includes(game.id) ? prev : [...prev, game.id]);
     setActiveModal('none');
   }, []);
+
+  const handleRestoreHiddenGame = useCallback((gameId: string) => { setHiddenGameIds((previous) => previous.filter((id) => id !== gameId)); }, []);
 
   const handleOpenOptions = useCallback(() => {
     if (activePage === 'system') return;
@@ -839,14 +867,7 @@ export default function App() {
     setActiveModal('translator');
   }, []);
 
-  const handleJumpToSteamGridDbSettings = useCallback(() => {
-    soundEngine.playTab();
-    setIsFormCoverFinderOpen(false);
-    setActiveModal('none');
-    setEditingGame(null);
-    setSystemCategory('integrations');
-    setActivePage('system');
-  }, []);
+
 
   const handleCompleteOnboarding = useCallback((layout: ControllerLayout) => {
     soundEngine.playConfirm();
@@ -1379,6 +1400,7 @@ export default function App() {
             soundEngine.playMove();
             setActiveModal('search');
           }}
+          onOpenStore={() => void handleStoreShortcut()}
         />
 
         {/* Conteúdo das 3 Páginas Principais */}
@@ -1388,6 +1410,8 @@ export default function App() {
             settings={settings}
             detectedLayout={detectedLayout}
             games={games}
+            hiddenGames={games.filter((game) => hiddenGameIds.includes(game.id))}
+            onRestoreHiddenGame={handleRestoreHiddenGame}
             initialCategory={systemCategory}
             buttonMapping={buttonMapping}
             capturingAction={capturingAction}
@@ -1457,15 +1481,7 @@ export default function App() {
               setLibraryFocusZone('games');
               setSelectedIndex(0);
             }}
-            onResetDefaultGames={() => {
-              soundEngine.playConfirm();
-              setGames(DEFAULT_GAMES);
-              setActivePage('library');
-              setPlatformFilter('Todos');
-              setFocusedFilterIndex(0);
-              setLibraryFocusZone('games');
-              setSelectedIndex(0);
-            }}
+            onResetDefaultGames={() => setGames(DEFAULT_GAMES)}
             onSleepMode={() => setIsSleeping(true)}
             onOpenUpdateModal={(info) => {
               setUpdateInfo(info);
@@ -1507,7 +1523,7 @@ export default function App() {
               setLibraryFocusZone('games');
             }}
             onSelectIndex={handleSelectIndex}
-            onPlayGame={handlePlayGame}
+            onPlayGame={(game) => { const index = visibleGames.findIndex((item) => item.id === game.id); if (index >= 0) setSelectedIndex(index); setModalFocusIndex(0); setActiveModal('game-options'); }}
             onAddGame={() => {
               soundEngine.playMove();
               setEditingGame(null);
@@ -1543,7 +1559,8 @@ export default function App() {
               setEditingGame(null);
               setActiveModal('add-game');
             } else if (selectedGame) {
-              handlePlayGame(selectedGame);
+              setModalFocusIndex(0);
+              setActiveModal('game-options');
             }
           }}
           onRandomGame={handleRandomGame}
@@ -1634,7 +1651,6 @@ export default function App() {
               );
               setActiveModal('none');
             }}
-            onGoToApiSettings={handleJumpToSteamGridDbSettings}
             onClose={() => {
               soundEngine.playCancel();
               setActiveModal('none');
@@ -1649,7 +1665,6 @@ export default function App() {
             coverFinderRef={coverFinderRef}
             isCoverFinderOpen={isFormCoverFinderOpen}
             onCoverFinderOpenChange={setIsFormCoverFinderOpen}
-            onGoToApiSettings={handleJumpToSteamGridDbSettings}
             onSave={handleSaveGame}
             onClose={() => {
               soundEngine.playCancel();
@@ -1698,6 +1713,18 @@ export default function App() {
           updateInfo={updateInfo}
           appName="Pad2PS Launcher"
         />
+
+        {storePickerOpen && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="store-picker-title">
+            <section className="theme-surface flex max-h-[80vh] w-full max-w-lg flex-col gap-3 p-5">
+              <div className="flex items-center justify-between gap-3"><h2 id="store-picker-title" className="font-display text-xl font-extrabold">Escolher aplicativo da loja</h2><button type="button" className="theme-control px-3 py-2" onClick={() => setStorePickerOpen(false)}>Fechar</button></div>
+              <p className="text-sm text-[var(--text-secondary)]">Escolha um aplicativo instalado para abrir pelo atalho da sacola. A escolha fica salva apenas neste dispositivo.</p>
+              {storePickerError && <p role="status" className="text-sm text-amber-300">{storePickerError}</p>}
+              <div className="min-h-0 space-y-2 overflow-y-auto">{storeApps.map((store) => <button key={store.packageName} type="button" className="theme-control w-full p-3 text-left font-semibold" onClick={async () => { localStorage.setItem('pad2ps_android_store_package', store.packageName); setStorePickerOpen(false); try { await GameScanner.launchGame({ packageName: store.packageName }); } catch { localStorage.removeItem('pad2ps_android_store_package'); } }}>{store.title}</button>)}</div>
+              <button type="button" className="theme-control border border-[var(--border-subtle)] p-3 text-sm text-[var(--text-secondary)]" onClick={() => { localStorage.removeItem('pad2ps_android_store_package'); setStorePickerOpen(false); }}>Escolher outro aplicativo na próxima vez</button>
+            </section>
+          </div>
+        )}
       </div>
     </ControllerLayoutProvider>
   );

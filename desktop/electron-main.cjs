@@ -6,6 +6,11 @@ const os = require('os');
 const { spawn, execFile } = require('child_process');
 const DiscordRPC = require('discord-rpc');
 require('dotenv').config({ path: path.join(__dirname, '.env.local') });
+let packagedServiceKeys = {};
+try { packagedServiceKeys = require('./steamgriddb-secret.cjs'); } catch {}
+const STEAMGRIDDB_API_KEY = process.env.STEAMGRIDDB_API_KEY || packagedServiceKeys.STEAMGRIDDB_API_KEY || '';
+const IGDB_CLIENT_ID = process.env.IGDB_CLIENT_ID || packagedServiceKeys.IGDB_CLIENT_ID || '';
+const IGDB_CLIENT_SECRET = process.env.IGDB_CLIENT_SECRET || packagedServiceKeys.IGDB_CLIENT_SECRET || '';
 
 // Diretórios de dados e cache
 const IS_WIN = process.platform === 'win32';
@@ -105,7 +110,7 @@ async function syncRetroAccount(usernameInput, keyInput) {
 function readIgdbCredentials() {
   try {
     if (fs.existsSync(IGDB_CREDENTIALS_FILE) && safeStorage.isEncryptionAvailable()) return JSON.parse(safeStorage.decryptString(fs.readFileSync(IGDB_CREDENTIALS_FILE)));
-    if (process.env.IGDB_CLIENT_ID && process.env.IGDB_CLIENT_SECRET) return { clientId: process.env.IGDB_CLIENT_ID, clientSecret: process.env.IGDB_CLIENT_SECRET };
+    if (IGDB_CLIENT_ID && IGDB_CLIENT_SECRET) return { clientId: IGDB_CLIENT_ID, clientSecret: IGDB_CLIENT_SECRET };
   } catch {}
   return null;
 }
@@ -1006,6 +1011,37 @@ function startHttpServer() {
         req.on('error', reject);
       });
 
+      if (req.method === 'GET' && pathname.startsWith('/api/steamgriddb/')) {
+        const kind = pathname.slice('/api/steamgriddb/'.length);
+        const query = url.searchParams.get('q') || '';
+        const gameId = Number(url.searchParams.get('gameId'));
+        let apiPath = '';
+        if (kind === 'search' && query.trim()) apiPath = `/search/autocomplete/${encodeURIComponent(query.trim())}`;
+        else if (['grids', 'heroes'].includes(kind) && Number.isInteger(gameId) && gameId > 0) {
+          apiPath = kind === 'grids'
+            ? `/grids/game/${gameId}${url.searchParams.has('dimensions') ? `?dimensions=${encodeURIComponent(url.searchParams.get('dimensions'))}&nsfw=false&humor=false` : '?nsfw=false&humor=false'}`
+            : `/heroes/game/${gameId}?nsfw=false&humor=false`;
+        }
+        if (!apiPath) return sendJson({ success: false, errors: ['Consulta inválida.'] }, 400);
+        if (!STEAMGRIDDB_API_KEY) return sendJson({ success: false, errors: ['SteamGridDB não configurado no processo do aplicativo.'] }, 503);
+        void fetch(`https://www.steamgriddb.com/api/v2${apiPath}`, { headers: { Authorization: `Bearer ${STEAMGRIDDB_API_KEY}` } })
+          .then(async (response) => sendJson(await response.json().catch(() => ({ success: false, errors: ['Resposta inválida da SteamGridDB.'] })), response.status))
+          .catch((error) => sendJson({ success: false, errors: [error.message || 'Falha de rede ao consultar SteamGridDB.'] }, 502));
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/api/open-game-folder') {
+        const command = url.searchParams.get('command') || '';
+        const quoted = command.match(/["']([^"']+)["']/)?.[1];
+        const candidate = quoted || command.trim().split(/\s+/)[0]?.replace(/^"|"$/g, '');
+        if (!candidate || !path.isAbsolute(candidate) || !fs.existsSync(candidate)) {
+          return sendJson({ error: 'O caminho do jogo não existe neste computador.' }, 404);
+        }
+        const target = fs.statSync(candidate).isDirectory() ? candidate : path.dirname(candidate);
+        void shell.openPath(target).then((error) => sendJson(error ? { error } : { ok: true }, error ? 500 : 200));
+        return;
+      }
+
       // Steam Web API: credentials stay encrypted locally and requests go directly to Valve.
       if (req.method === 'GET' && pathname === '/api/steam/config') {
         const credentials = readSteamCredentials();
@@ -1022,8 +1058,8 @@ function startHttpServer() {
       if (req.method === 'POST' && pathname === '/api/igdb/config') {
         void readJsonBody().then(async (body) => {
           const existing = readIgdbCredentials();
-          const clientId = String(body.clientId || process.env.IGDB_CLIENT_ID || existing?.clientId || '').trim();
-          const clientSecret = String(body.clientSecret || process.env.IGDB_CLIENT_SECRET || existing?.clientSecret || '').trim();
+          const clientId = String(body.clientId || IGDB_CLIENT_ID || existing?.clientId || '').trim();
+          const clientSecret = String(body.clientSecret || IGDB_CLIENT_SECRET || existing?.clientSecret || '').trim();
           if (!clientId || !clientSecret) throw new Error('Informe Client ID e Client Secret.');
           saveIgdbCredentials({ clientId, clientSecret });
           const credentials = readIgdbCredentials();

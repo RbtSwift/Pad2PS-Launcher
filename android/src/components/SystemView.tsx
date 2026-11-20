@@ -5,9 +5,11 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { Capacitor } from '@capacitor/core';
 import {
   AlertTriangle,
   BadgeCheck,
+  BookOpen,
   Check,
   Clock,
   Download,
@@ -15,12 +17,12 @@ import {
   Eye,
   EyeOff,
   FileJson,
-  FolderOpen,
   Gamepad2,
   Image as ImageIcon,
   Images,
   KeyRound,
   Library,
+  Link2,
   Monitor,
   Moon,
   Palette,
@@ -30,6 +32,7 @@ import {
   RotateCcw,
   Save,
   SlidersHorizontal,
+  ShieldCheck,
   Sparkles,
   Trash2,
   Upload,
@@ -39,17 +42,13 @@ import {
 import { checkForAppUpdate, CURRENT_APP_VERSION, type UpdateCheckResult } from '../utils/updateChecker';
 import { DEFAULT_TRANSLATOR_URL, THEMES } from '../data/defaultGames';
 import {
-  isAndroidNative,
-  pickAndroidRomFolder,
-  rescanAndroidLibrary,
-} from '../utils/androidBridge';
-import {
   ControllerLayout,
   CustomBorderRadiusPreset,
   CustomFontPreset,
   CustomSoundPreset,
   CustomThemeConfig,
   Game,
+  SteamSyncData,
   GamepadButtonMapping,
   IdleTimeoutMinutes,
   LauncherSettings,
@@ -61,12 +60,8 @@ import {
 } from '../types';
 import { hexToRgbString } from '../data/defaultGames';
 import {
-  getStoredSteamGridDbKey,
   resizeImageFileTo1920x1080,
-  saveStoredSteamGridDbKey,
 } from '../utils/coverSearch';
-import { clearRetroCredentials, loadRetroCredentials, retroRequest, storeRetroCredentials, type RetroProfile } from '../utils/retroAchievements';
-import { clearIgdbCredentials, igdbConfig, saveIgdbCredentials } from '../utils/igdb';
 import {
   formatGamepadButtonName,
   REMAPPABLE_ACTIONS_META,
@@ -108,9 +103,14 @@ interface SystemViewProps {
   onAddGame: () => void;
   onImportGames: (games: Game[]) => void;
   onResetDefaultGames: () => void;
+  hiddenGames?: Game[];
+  onRestoreHiddenGame?: (gameId: string) => void;
   onSleepMode: () => void;
   onRestart: () => void;
   onOpenUpdateModal?: (info: UpdateCheckResult) => void;
+  onOpenControllerTest?: () => void;
+  onSteamSyncGames?: (data: SteamSyncData, includeUninstalled: boolean) => Promise<void>;
+  onSteamDisconnected?: () => void;
 }
 
 const CATEGORIES: {
@@ -120,7 +120,7 @@ const CATEGORIES: {
 }[] = [
   { id: 'appearance', label: 'Aparência & Temas', icon: Palette },
   { id: 'controller', label: 'Controle & Atalhos', icon: Gamepad2 },
-  { id: 'integrations', label: 'Integrações', icon: KeyRound },
+  { id: 'integrations', label: 'Integrações', icon: Link2 },
   { id: 'library', label: 'Biblioteca & Dados', icon: Library },
   { id: 'power', label: 'Energia & Web Pad2PS', icon: Power },
 ];
@@ -271,6 +271,8 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
       settings,
       detectedLayout,
       games,
+      hiddenGames = [],
+      onRestoreHiddenGame,
       initialCategory = 'appearance',
       buttonMapping,
       capturingAction,
@@ -291,6 +293,9 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
       onSleepMode,
       onRestart,
       onOpenUpdateModal,
+      onOpenControllerTest,
+      onSteamSyncGames,
+      onSteamDisconnected,
     },
     ref
   ) => {
@@ -304,16 +309,20 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
 
     const [activeCategory, setActiveCategory] =
       useState<SystemCategory>(initialCategory);
-    const [activeIntegration, setActiveIntegration] = useState<'covers' | 'steam' | 'retro' | 'igdb'>('covers');
+    const [activeIntegration, setActiveIntegration] = useState<'steam' | 'retro'>('steam');
     const [focusPane, setFocusPane] = useState<'categories' | 'content'>(
       'categories'
     );
     const [contentFocusIndex, setContentFocusIndex] = useState<number>(0);
 
-    const [apiKeyInput, setApiKeyInput] = useState<string>(() =>
-      getStoredSteamGridDbKey()
-    );
-    const [showApiKey, setShowApiKey] = useState<boolean>(false);
+    const [steamApiKey, setSteamApiKey] = useState('');
+    const [steamProfileInput, setSteamProfileInput] = useState('');
+    const [showSteamApiKey, setShowSteamApiKey] = useState(false);
+    const [steamBusy, setSteamBusy] = useState(false);
+    const [steamFeedback, setSteamFeedback] = useState<string | null>(null);
+    const [steamConnected, setSteamConnected] = useState(false);
+    const [steamProfile, setSteamProfile] = useState<{name:string;avatar:string;profileUrl:string}|null>(null);
+    const [includeUninstalledSteamGames, setIncludeUninstalledSteamGames] = useState(() => localStorage.getItem('pad2ps_steam_show_uninstalled') === 'true');
     const [customImageUrlInput, setCustomImageUrlInput] = useState<string>(
       () =>
         settings.screensaverCustomImage.startsWith('data:')
@@ -324,48 +333,34 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
     const [feedback, setFeedback] = useState<string | null>(null);
     const [exportingLogo, setExportingLogo] = useState(false);
     const [autostartEnabled, setAutostartEnabled] = useState<boolean>(false);
+    const [discordPresenceEnabled, setDiscordPresenceEnabled] = useState(true);
+    const [discordPresenceConfigured, setDiscordPresenceConfigured] = useState(false);
     const [retroUsername, setRetroUsername] = useState('');
     const [retroKey, setRetroKey] = useState('');
     const [retroShowKey, setRetroShowKey] = useState(false);
     const [retroBusy, setRetroBusy] = useState(false);
     const [retroFeedback, setRetroFeedback] = useState('');
-    const [retroProfile, setRetroProfile] = useState<RetroProfile | null>(null);
-    const [igdbClientId, setIgdbClientId] = useState('');
-    const [igdbClientSecret, setIgdbClientSecret] = useState('');
-    const [igdbShowSecret, setIgdbShowSecret] = useState(false);
-    const [igdbBusy, setIgdbBusy] = useState(false);
-    const [igdbConfigured, setIgdbConfigured] = useState(false);
-    const [igdbFeedback, setIgdbFeedback] = useState('');
+    const [retroProfile, setRetroProfile] = useState<{username:string;avatar:string;points:number;softcorePoints:number;hardcorePoints:number;rank:number}|null>(null);
 
     useEffect(() => {
-      void loadRetroCredentials().then(async (credentials) => {
-        if (!credentials) return;
-        setRetroUsername(credentials.username);
-        try { const profile = await retroRequest<RetroProfile>('API_GetUserSummary.php', credentials.username, credentials.key); setRetroProfile(profile); }
-        catch { setRetroFeedback('Credenciais salvas localmente; reconecte para atualizar os dados.'); }
-      });
+      fetch('/api/steam/config').then((r) => r.ok ? r.json() : null).then((data) => {
+        if (data) { setSteamConnected(Boolean(data.configured)); setSteamProfileInput(String(data.steamId || '')); setSteamProfile(data.profile || null); }
+      }).catch(() => {});
+      fetch('/api/retro/config').then((r) => r.ok ? r.json() : null).then((data) => {
+        if (data?.configured) { setRetroUsername(data.username || ''); setRetroProfile(data.profile || null); }
+      }).catch(() => {});
     }, []);
+    const handleSteamSync = async () => { setSteamBusy(true); setSteamFeedback('Sincronização Steam disponível no Desktop.'); setSteamBusy(false); };
+    const handleSteamDisconnect = async () => { setSteamConnected(false); setSteamProfile(null); setSteamApiKey(''); setSteamProfileInput(''); setSteamFeedback(''); };
+    const handleRetroSync = async () => { setRetroBusy(true); setRetroFeedback('A integração RetroAchievements não está disponível neste build móvel.'); setRetroBusy(false); };
+    const handleRetroDisconnect = async () => { setRetroProfile(null); setRetroUsername(''); setRetroKey(''); setRetroFeedback(''); };
 
-    useEffect(() => { void igdbConfig().then((config) => { setIgdbConfigured(config.configured); setIgdbClientId(config.clientId || ''); }).catch(() => {}); }, []);
-    const handleIgdbSave = async () => {
-      setIgdbBusy(true); setIgdbFeedback('Validando e protegendo as credenciais…');
-      try { await saveIgdbCredentials(igdbClientId, igdbClientSecret); setIgdbConfigured(true); setIgdbClientSecret(''); setIgdbFeedback('IGDB conectada. Credenciais e token protegidos pelo Android Keystore.'); }
-      catch (error) { setIgdbFeedback(error instanceof Error ? error.message : 'Não foi possível validar as credenciais IGDB.'); }
-      finally { setIgdbBusy(false); }
-    };
-    const handleIgdbClear = async () => { setIgdbBusy(true); try { await clearIgdbCredentials(); setIgdbConfigured(false); setIgdbClientId(''); setIgdbClientSecret(''); setIgdbFeedback('Credenciais e cache IGDB removidos deste dispositivo.'); } finally { setIgdbBusy(false); } };
 
-    const handleRetroSync = async () => {
-      setRetroBusy(true); setRetroFeedback('Validando direto no RetroAchievements…');
-      try {
-        const profile = await retroRequest<RetroProfile>('API_GetUserSummary.php', retroUsername.trim(), retroKey.trim());
-        if (!profile?.User) throw new Error('Usuário ou chave não reconhecidos.');
-        await storeRetroCredentials(profile.User, retroKey.trim()); setRetroUsername(profile.User); setRetroKey(''); setRetroProfile(profile);
-        setRetroFeedback('Conta conectada. A chave foi salva criptografada neste dispositivo.');
-      } catch (error) { setRetroFeedback(error instanceof Error ? error.message : 'Não foi possível conectar.'); }
-      finally { setRetroBusy(false); }
-    };
-    const handleRetroDisconnect = async () => { await clearRetroCredentials(); setRetroProfile(null); setRetroUsername(''); setRetroKey(''); setRetroFeedback('Credenciais apagadas do cofre deste dispositivo.'); };
+    useEffect(() => {
+      fetch('/api/discord/config').then((r) => r.ok ? r.json() : null).then((data) => {
+        if (data) { setDiscordPresenceEnabled(data.enabled !== false); setDiscordPresenceConfigured(Boolean(data.configured)); }
+      }).catch(() => {});
+    }, []);
 
     useEffect(() => {
       fetch('/api/autostart')
@@ -444,14 +439,14 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
         case 'appearance':
           return THEMES.length + customThemeControlsCount;
         case 'controller':
-          // 4 layouts + 1 sound toggle + 7 remappable actions + 1 reset button = 13
+          // Layouts, sound, remappable actions, reset, and controller test.
           return (
-            CONTROLLER_OPTIONS.length + 1 + REMAPPABLE_ACTIONS_META.length + 1
+            CONTROLLER_OPTIONS.length + 1 + REMAPPABLE_ACTIONS_META.length + 2
           );
         case 'integrations':
-          return activeIntegration === 'steam' ? 5 : 4 + 2;
+          return 2 + 2;
         case 'library':
-          return isAndroidNative() ? 6 : 4; // Add, Export, Import, Reset (+ Android ROMs/Rescan)
+          return 4; // Add, Export, Import, Reset
         case 'power':
           return (
             2 +
@@ -484,23 +479,6 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
       } finally {
         setIsCheckingUpdates(false);
       }
-    };
-
-    const handleSaveApiKey = () => {
-      saveStoredSteamGridDbKey(apiKeyInput);
-      soundEngine.playConfirm();
-      showToast(
-        apiKeyInput.trim()
-          ? 'Chave SteamGridDB salva no navegador!'
-          : 'Chave SteamGridDB removida.'
-      );
-    };
-
-    const handleClearApiKey = () => {
-      setApiKeyInput('');
-      saveStoredSteamGridDbKey('');
-      soundEngine.playCancel();
-      showToast('Chave SteamGridDB removida.');
     };
 
     const handleDownloadLogo = async (variant: 'full' | 'icon' = 'full') => {
@@ -591,17 +569,33 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
       e.target.value = '';
     };
 
+    const handleQuitApp = () => {
+      soundEngine.playCancel();
+      const desktop = (window as unknown as {
+        pad2psDesktop?: { quitApp?: () => void };
+      }).pad2psDesktop;
+      if (desktop?.quitApp) {
+        desktop.quitApp();
+      } else {
+        fetch('/api/quit', { method: 'POST' }).catch(() => {
+          if (window.confirm('Sair do Pad2PS Launcher?')) {
+            window.close();
+          }
+        });
+      }
+    };
+
     const activateContentItem = (idx: number) => {
       if (activeCategory === 'integrations') {
-        if (idx < 4) {
-          const integration = (['covers', 'steam', 'retro', 'igdb'] as const)[idx];
+        if (idx < 2) {
+          const integration = (['steam', 'retro'] as const)[idx];
           if (integration) {
             setActiveIntegration(integration);
-            setContentFocusIndex(4);
+            setContentFocusIndex(2);
           }
           return;
         }
-        idx -= 4;
+        idx -= 2;
       }
       if (activeCategory === 'appearance') {
         if (idx < THEMES.length) {
@@ -693,21 +687,25 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
             onStartCaptureButton(meta.id);
           }
         } else {
-          onResetButtonMapping();
-          showToast('Mapeamento de botões restaurado para o padrão!');
+          const resetIndex = CONTROLLER_OPTIONS.length + 1 + REMAPPABLE_ACTIONS_META.length;
+          if (idx === resetIndex) {
+            onResetButtonMapping();
+            showToast('Mapeamento de botões restaurado para o padrão!');
+          } else {
+            onOpenControllerTest?.();
+          }
         }
         return;
       }
-      if (activeCategory === 'integrations' && activeIntegration === 'covers') {
-        if (idx === 0) handleSaveApiKey();
-        else handleClearApiKey();
+      if (activeCategory === 'integrations' && activeIntegration === 'steam') {
+        if (idx === 0) void handleSteamSync();
+        else if (idx === 1) void handleSteamDisconnect();
         return;
       }
       if (activeCategory === 'integrations' && activeIntegration === 'retro') {
         if (idx === 0) void handleRetroSync(); else void handleRetroDisconnect();
         return;
       }
-      if (activeCategory === 'integrations' && activeIntegration === 'igdb') { if (idx === 0) void handleIgdbSave(); else void handleIgdbClear(); return; }
       if (activeCategory === 'library') {
         if (idx === 0) onAddGame();
         else if (idx === 1) {
@@ -717,10 +715,8 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           soundEngine.playMove();
           fileInputRef.current?.click();
         } else if (idx === 3) {
-          onResetDefaultGames();
-          showToast('Biblioteca padrão restaurada (8 jogos).');
-        } else if (idx >= 4) {
-          contentRefs.current[idx]?.click();
+          hiddenGames.forEach((game) => onRestoreHiddenGame?.(game.id));
+          showToast(hiddenGames.length ? 'Itens restaurados à biblioteca.' : 'Não há itens ocultos.');
         }
         return;
       }
@@ -760,17 +756,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           soundEngine.playConfirm();
           onRestart();
         } else if (idx === utilitiesStart + 5) {
-          soundEngine.playCancel();
-          const desktop = (window as unknown as {
-            pad2psDesktop?: { quitApp?: () => void };
-          }).pad2psDesktop;
-          if (desktop?.quitApp) {
-            desktop.quitApp();
-          } else {
-            fetch('/api/quit', { method: 'POST' }).catch(() => {
-              window.close();
-            });
-          }
+          handleQuitApp();
         }
       }
     };
@@ -816,9 +802,9 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
 
     useEffect(() => {
       if (focusPane === 'content') {
-        const target = activeCategory === 'integrations' && contentFocusIndex < 4
+        const target = activeCategory === 'integrations' && contentFocusIndex < 2
           ? integrationCardRefs.current[contentFocusIndex]
-          : contentRefs.current[activeCategory === 'integrations' ? contentFocusIndex - 4 : contentFocusIndex];
+          : contentRefs.current[activeCategory === 'integrations' ? contentFocusIndex - 2 : contentFocusIndex];
         target?.scrollIntoView({
           block: 'nearest',
           behavior: 'smooth',
@@ -895,7 +881,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
     const safeTranslatorUrl = getSafeUrl(settings.translatorUrl);
 
     return (
-      <main className="android-system-main relative z-10 flex-1 min-h-0 px-6 sm:px-10 lg:px-16 py-2 flex flex-col overflow-hidden">
+      <main className="relative z-10 flex-1 min-h-0 px-6 sm:px-10 lg:px-16 py-2 flex flex-col overflow-hidden">
         <input
           ref={fileInputRef}
           type="file"
@@ -922,11 +908,11 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
         )}
 
         {/* Layout 2 Colunas Amplo Estilo Console */}
-        <div className="android-system-layout flex-1 min-h-0 flex flex-col md:flex-row gap-6 lg:gap-8">
+        <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-6 lg:gap-8">
           {/* Coluna Esquerda (w-80): Lista Vertical de Categorias */}
           <aside
             aria-label="Categorias do Sistema"
-            className="android-system-categories w-full md:w-72 lg:w-80 shrink-0 flex flex-row md:flex-col gap-2.5 overflow-x-auto md:overflow-y-auto no-scrollbar py-1"
+            className="w-full md:w-72 lg:w-80 shrink-0 flex flex-row md:flex-col gap-2.5 overflow-x-auto md:overflow-y-auto no-scrollbar py-1"
           >
             {CATEGORIES.map((cat, idx) => {
               const Icon = cat.icon;
@@ -990,7 +976,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           {/* Coluna Direita: Painel Amplo e Legível */}
           <section
             aria-live="polite"
-            className="android-system-panel theme-surface flex-1 min-w-0 min-h-0 p-4 sm:p-6 lg:p-8 pb-24 overflow-y-auto no-scrollbar backdrop-blur-xl"
+            className="theme-surface flex-1 min-w-0 min-h-0 p-5 sm:p-6 lg:p-8 overflow-y-auto no-scrollbar backdrop-blur-xl"
             style={{
               backgroundColor:
                 'color-mix(in srgb, var(--bg-surface) 84%, transparent)',
@@ -1004,23 +990,21 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
               <div className="mb-6 space-y-3">
                 <div>
                   <h2 className="font-display text-xl lg:text-2xl font-extrabold text-[var(--text-primary)]">Integrações</h2>
-                  <p className="mt-1 text-sm text-[var(--text-secondary)]">Serviços opcionais para adicionar capas, dados e conquistas à biblioteca.</p>
+                  <p className="mt-1 text-sm text-[var(--text-secondary)]">Conecte suas contas pessoais Steam e RetroAchievements. Capas e metadados são recursos internos do Launcher.</p>
                 </div>
                 <div className="theme-control flex items-start gap-3 border p-4 sm:p-5" role="note" style={{ backgroundColor: 'rgba(var(--accent-rgb), 0.10)', borderColor: 'var(--accent)' }}>
-                  <KeyRound className="mt-0.5 h-5 w-5 shrink-0" style={{ color: 'var(--accent)' }} />
+                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" style={{ color: 'var(--accent)' }} />
                   <div className="space-y-1 text-sm leading-relaxed text-[var(--text-secondary)]">
                     <p className="font-bold text-[var(--text-primary)]">Privacidade: seus dados ficam no seu dispositivo</p>
-                    <p>O Pad2PS Launcher não coleta nem rastreia informações externas do usuário e não possui servidor de coleta de dados. Chaves de API, IDs e dados sincronizados ficam exclusivamente na memória interna ou no cofre local deste dispositivo. As consultas partem diretamente do aparelho para os serviços oficiais Steam, SteamGridDB, RetroAchievements e IGDB.</p>
+                    <p>O Pad2PS Launcher não coleta nem rastreia informações externas do usuário e não possui servidor de coleta de dados. Chaves de API, IDs e dados sincronizados ficam exclusivamente na memória interna ou no cofre local deste dispositivo. As consultas partem diretamente do aparelho para os serviços oficiais Steam e RetroAchievements.</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {([
-                    ['covers', 'SteamGridDB', 'Busca capas verticais, banners, logos e ícones em alta resolução para os jogos da biblioteca.'],
-                    ['steam', 'Steam', 'Sincroniza biblioteca, horas jogadas, jogos recentes e conquistas. A sincronização de conta está disponível no Launcher para Desktop.'],
+                    ['steam', 'Steam', 'Sincroniza biblioteca, horas jogadas, jogos recentes e conquistas usando sua conta Steam.'],
                     ['retro', 'RetroAchievements', 'Exibe progresso, medalhas e conquistas desbloqueadas em jogos clássicos e emuladores.'],
-                    ['igdb', 'IGDB', 'Preenche sinopse, desenvolvedora, data de lançamento, gêneros e avaliações dos jogos.'],
                   ] as const).map(([id, title, description]) => (
-                    <button key={id} ref={(element) => { integrationCardRefs.current[['covers', 'steam', 'retro', 'igdb'].indexOf(id)] = element; }} type="button" aria-pressed={activeIntegration === id} onClick={() => { setActiveIntegration(id); setContentFocusIndex(4); }} className="theme-control p-4 border text-left transition-colors" style={{ backgroundColor: activeIntegration === id ? 'rgba(var(--accent-rgb), 0.12)' : 'var(--bg-deep)', borderColor: activeIntegration === id ? 'var(--accent)' : 'var(--border-subtle)' }}>
+                    <button key={id} ref={(element) => { integrationCardRefs.current[['steam', 'retro'].indexOf(id)] = element; }} type="button" aria-pressed={activeIntegration === id} onClick={() => { setActiveIntegration(id); setContentFocusIndex(2); }} className="theme-control p-4 border text-left transition-colors" style={{ backgroundColor: activeIntegration === id ? 'rgba(var(--accent-rgb), 0.12)' : 'var(--bg-deep)', borderColor: activeIntegration === id ? 'var(--accent)' : 'var(--border-subtle)' }}>
                       <span className="block font-bold text-[var(--text-primary)]">{title}</span>
                       <span className="mt-1 block text-sm leading-relaxed text-[var(--text-secondary)]">{description}</span>
                     </button>
@@ -1041,6 +1025,8 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                     100% em CSS e Web Audio API.
                   </p>
                 </div>
+
+
 
                 <div className="flex flex-col gap-3">
                   {THEMES.map((theme, idx) => {
@@ -1803,244 +1789,81 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                         </button>
                       );
                     })()}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* 3. Capas & API SteamGridDB */}
-            {activeCategory === 'integrations' && activeIntegration === 'covers' && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="font-display text-xl lg:text-2xl font-extrabold text-[var(--text-primary)]">
-                    Capas &amp; API SteamGridDB
-                  </h2>
-                  <p className="text-sm lg:text-base text-[var(--text-secondary)] mt-1">
-                    Configure sua chave gratuita para buscar capas verticais
-                    diretamente pelo nome do jogo ao adicionar ou editar títulos.
-                  </p>
-                  <p className="text-xs text-[var(--text-secondary)]">Capas fornecidas por <a href="https://www.steamgriddb.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--text-primary)]" style={{ color: 'var(--accent)' }}>SteamGridDB</a>.</p>
-                </div>
-
-                {/* Campo Grande da API Key */}
-                <div
-                  className="theme-control p-5 border space-y-3"
-                  style={{
-                    backgroundColor: 'var(--bg-deep)',
-                    borderColor: 'var(--border-subtle)',
-                  }}
-                >
-                  <label
-                    htmlFor="sgdb-api-key-input"
-                    className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]"
-                  >
-                    <KeyRound
-                      className="w-5 h-5"
-                      style={{ color: 'var(--accent)' }}
-                    />
-                    <span>API Key do SteamGridDB</span>
-                  </label>
-
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="relative flex-1">
-                      <input
-                        id="sgdb-api-key-input"
-                        type={showApiKey ? 'text' : 'password'}
-                        value={apiKeyInput}
-                        onChange={(e) => setApiKeyInput(e.target.value)}
-                        placeholder="Cole aqui sua chave da API do SteamGridDB..."
-                        className="theme-control w-full px-4 py-3 pr-12 border text-base font-mono-tech text-[var(--text-primary)] placeholder-[var(--text-secondary)]/50 focus:outline-none focus:border-[var(--accent)]"
-                        style={{
-                          backgroundColor: 'var(--bg-surface)',
-                          borderColor: 'var(--border-subtle)',
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowApiKey((v) => !v)}
-                        aria-label={
-                          showApiKey ? 'Ocultar chave' : 'Mostrar chave'
-                        }
-                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
-                      >
-                        {showApiKey ? (
-                          <EyeOff className="w-4 h-4" />
-                        ) : (
-                          <Eye className="w-4 h-4" />
-                        )}
-                      </button>
-                    </div>
-
-                    <button
-                      ref={(el) => {
-                        contentRefs.current[0] = el;
-                      }}
-                      type="button"
-                      onMouseEnter={() => {
-                        setFocusPane('content');
-                        setContentFocusIndex(0);
-                      }}
-                      onClick={handleSaveApiKey}
-                      className="theme-control inline-flex items-center justify-center gap-2 px-6 py-3 text-base font-bold text-white cursor-pointer hover:brightness-110 shrink-0"
-                      style={{
-                        backgroundColor: 'var(--accent)',
-                        border:
-                          focusPane === 'content' && contentFocusIndex === 0
-                            ? '2px solid var(--text-primary)'
-                            : '2px solid transparent',
-                        boxShadow: 'var(--accent-glow)',
-                      }}
-                    >
-                      <Save className="w-4 h-4" />
-                      <span>Salvar Chave</span>
-                    </button>
-
-                    <button
-                      ref={(el) => {
-                        contentRefs.current[1] = el;
-                      }}
-                      type="button"
-                      onMouseEnter={() => {
-                        setFocusPane('content');
-                        setContentFocusIndex(1);
-                      }}
-                      onClick={handleClearApiKey}
-                      className="theme-control inline-flex items-center justify-center gap-2 px-4 py-3 text-base font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer shrink-0"
-                      style={{
-                        backgroundColor: 'var(--bg-surface)',
-                        border:
-                          focusPane === 'content' && contentFocusIndex === 1
-                            ? '2px solid var(--accent)'
-                            : '1px solid var(--border-subtle)',
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Limpar</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Guia Visual Claro */}
-                <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-5">
-                  {/* Diagrama 2:3 */}
-                  <div
-                    className="theme-control p-4 border flex flex-col items-center justify-center text-center gap-3"
-                    style={{
-                      backgroundColor: 'var(--bg-deep)',
-                      borderColor: 'var(--border-subtle)',
-                    }}
-                  >
-                    <div
-                      className="w-24 aspect-[2/3] border-2 border-dashed flex flex-col items-center justify-center p-2"
-                      style={{
-                        borderColor: 'var(--accent)',
-                        backgroundColor: 'rgba(var(--accent-rgb), 0.1)',
-                        borderRadius: 'var(--btn-radius)',
-                      }}
-                    >
-                      <span className="font-mono-tech text-sm font-bold text-[var(--text-primary)]">
-                        600×900
-                      </span>
-                      <span
-                        className="text-xs font-semibold mt-0.5"
-                        style={{ color: 'var(--accent)' }}
-                      >
-                        Proporção 2:3
-                      </span>
-                    </div>
-                    <p className="text-xs font-semibold text-[var(--text-secondary)]">
-                      .PNG, .JPG ou .WEBP
-                    </p>
-                  </div>
-
-                  {/* Explicação e Passo a Passo */}
-                  <div
-                    className="theme-control p-5 border space-y-4"
-                    style={{
-                      backgroundColor: 'var(--bg-deep)',
-                      borderColor: 'var(--border-subtle)',
-                    }}
-                  >
-                    <div>
-                      <h3 className="font-display text-base lg:text-lg font-bold text-[var(--text-primary)]">
-                        Dimensões Ideais para Capas Personalizadas
-                      </h3>
-                      <p className="text-sm lg:text-base text-[var(--text-secondary)] mt-1 leading-relaxed">
-                        Use imagens verticais de{' '}
-                        <strong className="text-[var(--text-primary)]">
-                          600 × 900 pixels (proporção 2:3)
-                        </strong>{' '}
-                        em <strong className="text-[var(--text-primary)]">.PNG</strong>,{' '}
-                        <strong className="text-[var(--text-primary)]">.JPG</strong> ou{' '}
-                        <strong className="text-[var(--text-primary)]">.WEBP</strong>. Ao importar um arquivo do seu PC, o Pad2PS redimensiona automaticamente para 600×900.
-                      </p>
-                    </div>
-
-                    <div
-                      className="pt-3 border-t"
-                      style={{ borderColor: 'var(--border-subtle)' }}
-                    >
-                      <h3 className="font-display text-base lg:text-lg font-bold text-[var(--text-primary)] mb-2">
-                        Como gerar sua chave gratuita no steamgriddb.com:
-                      </h3>
-                      <ol className="space-y-1.5 text-sm lg:text-base text-[var(--text-secondary)] list-decimal list-inside">
-                        <li>
-                          Acesse{' '}
-                          <a
-                            href="https://www.steamgriddb.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-semibold underline hover:text-[var(--text-primary)]"
-                            style={{ color: 'var(--accent)' }}
-                          >
-                            steamgriddb.com
-                          </a>{' '}
-                          e faça login com sua conta Steam.
-                        </li>
-                        <li>
-                          Abra <strong className="text-[var(--text-primary)]">Preferences</strong> no menu do seu perfil.
-                        </li>
-                        <li>
-                          Selecione a aba <strong className="text-[var(--text-primary)]">API</strong>.
-                        </li>
-                        <li>
-                          Clique em <strong className="text-[var(--text-primary)]">Generate API Key</strong>, copie o código e salve acima.
-                        </li>
-                      </ol>
-                    </div>
+                    {(() => {
+                      const testIndex = CONTROLLER_OPTIONS.length + 1 + REMAPPABLE_ACTIONS_META.length + 1;
+                      const focused = focusPane === 'content' && contentFocusIndex === testIndex;
+                      return <button ref={(el) => { contentRefs.current[testIndex] = el; }} type="button" onMouseEnter={() => { setFocusPane('content'); setContentFocusIndex(testIndex); }} onClick={() => onOpenControllerTest?.()} className="theme-control w-full flex items-center justify-center gap-2.5 p-3.5 text-sm lg:text-base font-bold transition-all cursor-pointer mt-1" style={{backgroundColor: focused ? 'rgba(var(--accent-rgb), 0.16)' : 'var(--bg-surface)', border: focused ? '2px solid var(--accent)' : '1px solid var(--border-subtle)', color: 'var(--text-primary)'}}><Gamepad2 className="w-4 h-4"/><span>Testar Controle</span></button>;
+                    })()}
                   </div>
                 </div>
               </div>
             )}
 
             {activeCategory === 'integrations' && activeIntegration === 'steam' && (
-              <div ref={(element) => { contentRefs.current[0] = element; }} className="theme-control max-w-3xl p-4 border space-y-2 text-sm" style={{ backgroundColor: 'var(--bg-deep)', borderColor: 'var(--border-subtle)' }}>
-                <h3 className="font-bold text-[var(--text-primary)]">Steam no Desktop</h3>
-                <p className="text-[var(--text-secondary)]">A sincronização de biblioteca, horas jogadas, jogos recentes e conquistas pela Steam Web API está disponível na versão Desktop do Pad2PS-Launcher. No Android, este card serve como referência; nenhuma credencial da Steam é solicitada ou enviada.</p>
+              <div className="space-y-5 max-w-4xl">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-display text-xl lg:text-2xl font-extrabold text-[var(--text-primary)]">Integração Steam (Opcional)</h2>
+                    {steamConnected && <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-300">Conectada</span>}
+                  </div>
+                  <p className="text-sm text-[var(--text-secondary)] mt-1">Sincronize sua biblioteca, horas jogadas, jogos recentes e conquistas usando a Steam Web API oficial.</p>
+                </div>
+
+                <div className="theme-control p-4 border flex items-start gap-3" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}>
+                  <ShieldCheck className="w-5 h-5 mt-0.5 shrink-0" style={{color:'var(--accent)'}} />
+                  <div className="space-y-1 text-sm text-[var(--text-secondary)]">
+                    <p className="font-bold text-[var(--text-primary)]">Duas APIs diferentes</p>
+                    <p>Esta integração usa a chave oficial da <strong className="text-[var(--text-primary)]">Steam</strong> (steamcommunity.com). Ela é diferente da SteamGridDB, que já busca capas automaticamente sem configuração.</p>
+                    <p>A chave e o SteamID ficam criptografados no cofre do sistema neste computador. As consultas seguem diretamente do Launcher para <code>api.steampowered.com</code>; nenhum servidor do Pad2PS recebe essas credenciais.</p>
+                  </div>
+                </div>
+
+                {steamProfile && (
+                  <a href={steamProfile.profileUrl} target="_blank" rel="noopener noreferrer" className="theme-control p-3 border flex items-center gap-3 w-fit" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}>
+                    <img src={steamProfile.avatar} alt="" className="w-12 h-12 rounded-full" />
+                    <span><strong className="block text-[var(--text-primary)]">{steamProfile.name}</strong><span className="text-xs text-[var(--text-secondary)]">Perfil Steam conectado</span></span>
+                  </a>
+                )}
+
+                <details className="theme-control p-4 border" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}>
+                  <summary className="cursor-pointer font-bold text-[var(--text-primary)]">Como obter minha Steam Web API Key e SteamID?</summary>
+                  <div className="mt-3 space-y-3 text-sm text-[var(--text-secondary)]">
+                    <p><strong className="text-[var(--text-primary)]">Passo 1 — Gerar a chave oficial da Steam:</strong> acesse <a className="underline" style={{color:'var(--accent)'}} href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener noreferrer">steamcommunity.com/dev/apikey</a>, entre na Steam, informe um nome de domínio (por exemplo, <code>localhost</code>) e copie a chave. Esse nome é apenas um dado informativo do cadastro e não é usado pelo Launcher. Não use uma chave da SteamGridDB neste campo.</p>
+                    <p><strong className="text-[var(--text-primary)]">Passo 2 — Encontrar o SteamID64:</strong> cole a URL do perfil, como <code>https://steamcommunity.com/id/seunome</code>, ou o SteamID64 de 17 dígitos. O Launcher resolve o link personalizado automaticamente.</p>
+                    <p><strong className="text-[var(--text-primary)]">Passo 3 — Tornar os detalhes públicos:</strong> nas configurações de privacidade do perfil Steam, defina <em>Detalhes dos jogos</em> como <strong className="text-[var(--text-primary)]">Pública</strong> para sincronizar biblioteca, horas e conquistas.</p>
+                  </div>
+                </details>
+
+                <div className="space-y-3">
+                  <label className="block text-sm font-bold text-[var(--text-primary)]" htmlFor="steam-web-api-key">Steam Web API Key</label>
+                  <div className="flex gap-2">
+                    <input id="steam-web-api-key" type={showSteamApiKey ? 'text' : 'password'} value={steamApiKey} onChange={(event) => setSteamApiKey(event.target.value)} placeholder={steamConnected ? 'Chave salva e criptografada neste computador' : 'Cole sua chave oficial da Steam'} className="theme-control min-w-0 flex-1 px-3 py-2 border font-mono-tech text-sm text-[var(--text-primary)]" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}} />
+                    <button type="button" onClick={() => setShowSteamApiKey((visible) => !visible)} className="theme-control px-3 border text-[var(--text-secondary)]" style={{borderColor:'var(--border-subtle)'}}>{showSteamApiKey ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}</button>
+                  </div>
+                  <label className="block text-sm font-bold text-[var(--text-primary)]" htmlFor="steam-profile-id">SteamID64 ou URL do Perfil Steam</label>
+                  <input id="steam-profile-id" value={steamProfileInput} onChange={(event) => setSteamProfileInput(event.target.value)} placeholder="7656119… ou https://steamcommunity.com/id/seunome" className="theme-control w-full px-3 py-2 border text-sm text-[var(--text-primary)]" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}} />
+                  <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)] cursor-pointer">
+                    <input type="checkbox" checked={includeUninstalledSteamGames} onChange={(event) => { const value = event.target.checked; setIncludeUninstalledSteamGames(value); localStorage.setItem('pad2ps_steam_show_uninstalled', String(value)); }} className="accent-[var(--accent)]" />
+                    Mostrar também jogos da conta que não estão instalados neste PC
+                  </label>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button ref={(element) => { contentRefs.current[0] = element; }} type="button" disabled={steamBusy} onClick={() => void handleSteamSync()} className="theme-control inline-flex items-center gap-2 px-4 py-2.5 font-bold text-white disabled:opacity-50" style={{backgroundColor:'var(--accent)',boxShadow:'var(--accent-glow)'}}><RefreshCw className={`w-4 h-4 ${steamBusy ? 'animate-spin' : ''}`}/>{steamBusy ? 'Sincronizando…' : 'Testar e Sincronizar'}</button>
+                    <button ref={(element) => { contentRefs.current[1] = element; }} type="button" disabled={steamBusy || !steamConnected} onClick={() => void handleSteamDisconnect()} className="theme-control inline-flex items-center gap-2 px-4 py-2.5 border text-[var(--text-secondary)] disabled:opacity-50" style={{borderColor:'var(--border-subtle)'}}><Trash2 className="w-4 h-4"/>Desconectar / Limpar Dados</button>
+                  </div>
+                  {steamFeedback && <p role="status" className="text-sm text-[var(--text-secondary)]">{steamFeedback}</p>}
+                </div>
               </div>
             )}
 
             {activeCategory === 'integrations' && activeIntegration === 'retro' && (
-              <div className="space-y-4 max-w-3xl">
-                <div><h2 className="font-display text-xl font-extrabold text-[var(--text-primary)]">Integração RetroAchievements (Opcional)</h2><p className="text-sm text-[var(--text-secondary)] mt-1">Perfil e conquistas para jogos retrô. As consultas seguem direto para a API oficial.</p></div>
-                <div className="theme-control p-4 border space-y-2 text-sm text-[var(--text-secondary)]" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}><p>Acesse <a className="underline" href="https://retroachievements.org/settings" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>retroachievements.org/settings</a>, abra <strong>Keys</strong> e copie sua Web API Key pessoal.</p><p>A chave é criptografada e fica somente no cofre seguro deste dispositivo.</p></div>
-                {retroProfile && <div className="theme-control p-3 border flex items-center gap-3" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}><img src={`https://retroachievements.org${retroProfile.UserPic}`} alt="" className="w-12 h-12 rounded-full"/><div><strong>{retroProfile.User}</strong><p className="text-xs text-[var(--text-secondary)]">Hardcore {Number(retroProfile.TotalTruePoints||0).toLocaleString()} · Softcore {Number(retroProfile.TotalSoftcorePoints||0).toLocaleString()} · Ranking #{retroProfile.Rank||'—'}</p></div></div>}
-                <label className="block text-sm font-bold">Usuário (Username)<input value={retroUsername} onChange={(e)=>setRetroUsername(e.target.value)} className="theme-control w-full mt-1 px-3 py-2 border" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}/></label>
-                <label className="block text-sm font-bold">RetroAchievements Web API Key<div className="flex gap-2 mt-1"><input type={retroShowKey?'text':'password'} value={retroKey} onChange={(e)=>setRetroKey(e.target.value)} placeholder={retroProfile?'Chave protegida neste dispositivo':'Cole sua chave pessoal'} className="theme-control min-w-0 flex-1 px-3 py-2 border font-mono-tech" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}/><button type="button" onClick={()=>setRetroShowKey((v)=>!v)} className="theme-control px-3 border" style={{borderColor:'var(--border-subtle)'}}>{retroShowKey?<EyeOff className="w-4 h-4"/>:<Eye className="w-4 h-4"/>}</button></div></label>
-                <div className="flex gap-2"><button ref={(el)=>{contentRefs.current[0]=el;}} type="button" disabled={retroBusy} onClick={()=>void handleRetroSync()} className="theme-control px-4 py-2.5 font-bold text-white" style={{backgroundColor:'var(--accent)'}}>{retroBusy?'Validando…':'Testar e Sincronizar'}</button><button ref={(el)=>{contentRefs.current[1]=el;}} type="button" disabled={!retroProfile} onClick={()=>void handleRetroDisconnect()} className="theme-control px-4 py-2.5 border" style={{borderColor:'var(--border-subtle)'}}>Desconectar / Limpar Dados</button></div>
-                {retroFeedback&&<p role="status" className="text-sm text-[var(--text-secondary)]">{retroFeedback}</p>}
-              </div>
-            )}
-
-            {activeCategory === 'integrations' && activeIntegration === 'igdb' && (
-              <div className="space-y-4 max-w-3xl">
-                <div><h2 className="font-display text-xl font-extrabold text-[var(--text-primary)]">Metadados IGDB (Opcional)</h2><p className="text-sm text-[var(--text-secondary)] mt-1">Sinopses, ano, gêneros, desenvolvedora e imagens para os jogos.</p></div>
-                <div className="theme-control p-4 border space-y-2 text-sm text-[var(--text-secondary)]" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}><p>No <a className="underline" href="https://dev.twitch.tv/console/apps" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>Console de Desenvolvedores da Twitch</a>, registre uma aplicação como <strong>Confidential</strong>, use <code>localhost</code> como redirect URL se solicitado e copie o Client ID e Client Secret.</p><p>As credenciais ficam criptografadas no Android Keystore. Chamadas IGDB usam a camada nativa, sem servidor externo do Pad2PS; token e fichas ficam em cache local.</p></div>
-                <label className="block text-sm font-bold">IGDB Client ID<input value={igdbClientId} onChange={(event)=>setIgdbClientId(event.target.value)} placeholder={igdbConfigured?'Credencial já protegida neste aparelho':'Cole seu Client ID'} className="theme-control w-full mt-1 px-3 py-2 border font-mono-tech" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}/></label>
-                <label className="block text-sm font-bold">IGDB Client Secret<div className="flex gap-2 mt-1"><input type={igdbShowSecret?'text':'password'} value={igdbClientSecret} onChange={(event)=>setIgdbClientSecret(event.target.value)} placeholder={igdbConfigured?'Segredo já protegido neste aparelho':'Cole seu Client Secret'} className="theme-control min-w-0 flex-1 px-3 py-2 border font-mono-tech" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}/><button type="button" onClick={()=>setIgdbShowSecret((value)=>!value)} className="theme-control px-3 border" style={{borderColor:'var(--border-subtle)'}}>{igdbShowSecret?<EyeOff className="w-4 h-4"/>:<Eye className="w-4 h-4"/>}</button></div></label>
-                <div className="flex flex-wrap gap-2"><button ref={(el)=>{contentRefs.current[0]=el;}} type="button" disabled={igdbBusy} onClick={()=>void handleIgdbSave()} className="theme-control px-4 py-2.5 font-bold text-white disabled:opacity-50" style={{backgroundColor:'var(--accent)'}}>{igdbBusy?'Validando…':'Testar e Salvar'}</button><button ref={(el)=>{contentRefs.current[1]=el;}} type="button" disabled={igdbBusy||!igdbConfigured} onClick={()=>void handleIgdbClear()} className="theme-control px-4 py-2.5 border disabled:opacity-50" style={{borderColor:'var(--border-subtle)'}}>Desconectar / Limpar Cache</button></div>
-                {igdbFeedback&&<p role="status" className="text-sm text-[var(--text-secondary)]">{igdbFeedback}</p>}
-                <p className="text-xs text-[var(--text-secondary)]">Metadados fornecidos por <a className="underline" href="https://www.igdb.com" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>IGDB</a>.</p>
+              <div className="space-y-5 max-w-4xl">
+                <div><h2 className="font-display text-xl lg:text-2xl font-extrabold text-[var(--text-primary)]">Integração RetroAchievements (Opcional)</h2><p className="text-sm text-[var(--text-secondary)] mt-1">Perfil e progresso de conquistas para jogos retrô.</p></div>
+                <div className="theme-control p-4 border space-y-2 text-sm text-[var(--text-secondary)]" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}><p>As consultas vão diretamente para a API oficial do RetroAchievements. As credenciais ficam criptografadas no cofre local deste computador.</p><p>Abra <a className="underline" href="https://retroachievements.org/settings" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>retroachievements.org/settings</a>, encontre a seção <strong>Keys</strong> e copie sua Web API Key pessoal.</p></div>
+                {retroProfile && <div className="theme-control p-3 border flex items-center gap-3 w-fit" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}><img src={retroProfile.avatar} alt="" className="w-12 h-12 rounded-full"/><div><strong className="text-[var(--text-primary)]">{retroProfile.username}</strong><p className="text-xs text-[var(--text-secondary)]">Hardcore {retroProfile.hardcorePoints.toLocaleString()} · Softcore {retroProfile.softcorePoints.toLocaleString()} · Ranking #{retroProfile.rank || '—'}</p></div></div>}
+                <label className="block text-sm font-bold text-[var(--text-primary)]">Usuário (Username)<input value={retroUsername} onChange={(event)=>setRetroUsername(event.target.value)} className="theme-control w-full mt-1 px-3 py-2 border text-sm" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}/></label>
+                <label className="block text-sm font-bold text-[var(--text-primary)]">RetroAchievements Web API Key<div className="flex gap-2 mt-1"><input type={retroShowKey?'text':'password'} value={retroKey} onChange={(event)=>setRetroKey(event.target.value)} placeholder={retroProfile?'Chave protegida e salva neste computador':'Cole sua chave pessoal'} className="theme-control min-w-0 flex-1 px-3 py-2 border font-mono-tech text-sm" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}/><button type="button" onClick={()=>setRetroShowKey((v)=>!v)} className="theme-control px-3 border" style={{borderColor:'var(--border-subtle)'}}>{retroShowKey?<EyeOff className="w-4 h-4"/>:<Eye className="w-4 h-4"/>}</button></div></label>
+                <div className="flex flex-wrap gap-2"><button ref={(el)=>{contentRefs.current[0]=el;}} type="button" disabled={retroBusy} onClick={()=>void handleRetroSync()} className="theme-control px-4 py-2.5 font-bold text-white" style={{backgroundColor:'var(--accent)'}}>{retroBusy?'Validando…':'Testar e Sincronizar'}</button><button ref={(el)=>{contentRefs.current[1]=el;}} type="button" disabled={!retroProfile} onClick={()=>void handleRetroDisconnect()} className="theme-control px-4 py-2.5 border text-[var(--text-secondary)]" style={{borderColor:'var(--border-subtle)'}}>Desconectar / Limpar Dados</button></div>
+                {retroFeedback && <p role="status" className="text-sm text-[var(--text-secondary)]">{retroFeedback}</p>}
               </div>
             )}
 
@@ -2056,7 +1879,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                     <code className="font-mono-tech text-[var(--text-primary)]">
                       jogos.json
                     </code>{' '}
-                    ou restaure os títulos de demonstração.
+                    e restaure itens ocultos.
                   </p>
                 </div>
 
@@ -2088,51 +1911,14 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                       },
                     },
                     {
-                      label: 'Restaurar Jogos de Exemplo',
-                      desc: 'Substitui a lista atual pelos 8 jogos padrão de demonstração do Pad2PS.',
+                      label: 'Restaurar Itens Ocultos',
+                      desc: `${hiddenGames.length} itens ocultos podem voltar à biblioteca.`,
                       icon: RotateCcw,
                       onClick: () => {
-                        onResetDefaultGames();
-                        showToast('Biblioteca padrão restaurada (8 jogos).');
+                        hiddenGames.forEach((game) => onRestoreHiddenGame?.(game.id));
+                        showToast(hiddenGames.length ? 'Itens restaurados à biblioteca.' : 'Não há itens ocultos.');
                       },
                     },
-                    ...(isAndroidNative()
-                      ? [
-                          {
-                            label: 'Selecionar Pasta de ROMs (Android)',
-                            desc: 'Escolha uma pasta do celular ou cartão SD para escanear ROMs (.iso, .chd, .cso, .nds, .gba, .nsp, etc.).',
-                            icon: FolderOpen,
-                            highlight: true,
-                            onClick: async () => {
-                              try {
-                                soundEngine.playConfirm();
-                                const res = await pickAndroidRomFolder();
-                                if (window.loadExternalGames && res.games.length > 0) {
-                                  window.loadExternalGames(res.games);
-                                }
-                                showToast(`${res.count} ROMs encontradas na pasta selecionada.`);
-                              } catch {
-                                showToast('Seleção de pasta cancelada.');
-                              }
-                            },
-                          },
-                          {
-                            label: 'Reescanear Jogos e Emuladores',
-                            desc: 'Atualiza automaticamente a lista de jogos instalados, emuladores e ROMs no Android.',
-                            icon: RefreshCw,
-                            onClick: async () => {
-                              soundEngine.playConfirm();
-                              const scanned = await rescanAndroidLibrary();
-                              if (window.loadExternalGames && scanned.length > 0) {
-                                window.loadExternalGames(scanned);
-                                showToast(`${scanned.length} títulos encontrados no aparelho.`);
-                              } else {
-                                showToast('Nenhum jogo adicional encontrado.');
-                              }
-                            },
-                          },
-                        ]
-                      : []),
                   ].map((item, idx) => {
                     const Icon = item.icon;
                     const isFocused =
@@ -2214,6 +2000,22 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                     energia.
                   </p>
                 </div>
+
+                {Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android' && (
+                  <button type="button" onClick={() => fetch('/api/home-settings').then((response) => { if (!response.ok) throw new Error(); }).catch(() => showToast('O Android não disponibilizou a tela de aplicativos padrão.'))} className="theme-control w-full border p-4 text-left" style={{ backgroundColor: 'var(--bg-deep)', borderColor: 'var(--border-subtle)' }}>
+                    <strong className="block text-[var(--text-primary)]">Definir como Tela Inicial Padrão (Modo Console Portátil)</strong>
+                    <span className="mt-1 block text-sm text-[var(--text-secondary)]">Abre as configurações do Android para você escolher o Pad2PS Launcher como app de início.</span>
+                  </button>
+                )}
+
+                <label className="theme-control p-4 border flex items-center justify-between gap-4 cursor-pointer" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}>
+                  <span><strong className="block text-[var(--text-primary)]">Discord Rich Presence</strong><span className="text-sm text-[var(--text-secondary)]">{discordPresenceConfigured ? 'Mostra se você está navegando ou jogando.' : 'Defina DISCORD_CLIENT_ID para ativar a comunicação com o Discord local.'}</span></span>
+                  <input type="checkbox" checked={discordPresenceEnabled} onChange={(event) => {
+                    const enabled = event.target.checked; setDiscordPresenceEnabled(enabled);
+                    fetch('/api/discord/config', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled}) })
+                      .then((r) => r.ok ? r.json() : null).then((data) => { if (data) setDiscordPresenceConfigured(Boolean(data.configured)); }).catch(() => {});
+                  }} className="accent-[var(--accent)]" />
+                </label>
 
                 {/* Ações Rápidas: Site Oficial & Ativar Descanso */}
                 <div className="flex flex-col gap-3">
@@ -2944,19 +2746,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                           setFocusPane('content');
                           setContentFocusIndex(quitIdx);
                         }}
-                        onClick={() => {
-                          soundEngine.playCancel();
-                          const desktop = (window as unknown as {
-                            pad2psDesktop?: { quitApp?: () => void };
-                          }).pad2psDesktop;
-                          if (desktop?.quitApp) {
-                            desktop.quitApp();
-                          } else {
-                            fetch('/api/quit', { method: 'POST' }).catch(() => {
-                              window.close();
-                            });
-                          }
-                        }}
+                        onClick={handleQuitApp}
                         className="theme-control w-full flex items-center gap-4 p-4 sm:p-5 text-left transition-all cursor-pointer"
                         style={{
                           backgroundColor:

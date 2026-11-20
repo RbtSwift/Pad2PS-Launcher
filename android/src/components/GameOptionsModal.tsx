@@ -91,8 +91,8 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
     {
       id: 'delete',
       label: confirmDelete
-        ? 'Confirmar Remoção da Biblioteca'
-        : 'Remover Jogo da Biblioteca',
+        ? 'Confirmar Ocultação da Biblioteca'
+        : 'Ocultar / Remover da Biblioteca',
       icon: Trash2,
       action: () => {
         if (!confirmDelete) {
@@ -115,7 +115,7 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="theme-surface w-full max-w-md p-6">
+      <div className="theme-surface w-full max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <div className="flex items-start justify-between gap-4 mb-5">
           <div className="min-w-0">
             <p
@@ -141,10 +141,17 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
           </button>
         </div>
 
-        {igdbMetadata && <section className="mb-4 p-3 rounded-lg bg-white/5 space-y-2 text-xs text-[var(--text-secondary)]"><h3 className="font-bold text-sm text-[var(--text-primary)]">Ficha técnica · IGDB</h3>{igdbMetadata.year&&<p>Lançamento: {igdbMetadata.year}</p>}{igdbMetadata.genres.length>0&&<p>Gêneros: {igdbMetadata.genres.join(', ')}</p>}{igdbMetadata.developers.length>0&&<p>Desenvolvedora: {igdbMetadata.developers.join(', ')}</p>}{igdbMetadata.summary&&<p className="max-h-24 overflow-y-auto">{igdbMetadata.summary}</p>}{igdbMetadata.screenshots.length>0&&<div className="flex gap-2 overflow-x-auto py-1">{igdbMetadata.screenshots.map((url)=><img key={url} src={url} alt={`Captura de ${igdbMetadata.name}`} loading="lazy" className="h-20 w-auto rounded object-cover"/>)}</div>}<p className="text-[10px]">Metadados fornecidos por IGDB.</p></section>}
+        <section className="relative mb-4 overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-black/30">
+          {game.coverUrl && <img src={game.coverUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-20 blur-xl" />}
+          <div className="relative flex min-h-36 items-center gap-4 p-4 sm:p-5">
+            {game.coverUrl && <img src={game.coverUrl} alt={`Capa de ${game.title}`} className="h-28 w-20 shrink-0 rounded-lg object-cover shadow-lg" />}
+            <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--accent)' }}>{game.platform || 'Jogo'}</p><h3 className="mt-1 text-xl font-bold text-[var(--text-primary)] sm:text-2xl">{game.title}</h3><p className="mt-2 text-sm text-[var(--text-secondary)]">{game.hoursPlayed || 0} h jogadas{game.favorite ? ' · Favorito' : ''}</p></div>
+          </div>
+        </section>
+        {igdbMetadata && <section className="mb-4 p-4 rounded-xl bg-white/5 space-y-2 text-sm text-[var(--text-secondary)]"><h3 className="font-bold text-base text-[var(--text-primary)]">Ficha técnica · IGDB</h3>{igdbMetadata.year&&<p>Lançamento: {igdbMetadata.year}</p>}{igdbMetadata.genres.length>0&&<p>Gêneros: {igdbMetadata.genres.join(', ')}</p>}{igdbMetadata.developers.length>0&&<p>Desenvolvedora: {igdbMetadata.developers.join(', ')}</p>}{igdbMetadata.summary&&<p className="max-h-36 overflow-y-auto leading-relaxed">{igdbMetadata.summary}</p>}{igdbMetadata.screenshots.length>0&&<div className="flex gap-2 overflow-x-auto py-1">{igdbMetadata.screenshots.map((url)=><img key={url} src={url} alt={`Captura de ${igdbMetadata.name}`} loading="lazy" className="h-24 w-auto rounded-lg object-cover"/>)}</div>}<p className="text-[10px]">Metadados fornecidos por IGDB.</p></section>}
         <div className="mb-4 p-3 rounded-lg bg-white/5 space-y-2"><label className="block text-xs font-semibold text-[var(--text-secondary)]">GameID RetroAchievements</label><div className="flex gap-2"><input value={retroId} onChange={(e)=>setRetroId(e.target.value.replace(/\D/g,''))} inputMode="numeric" placeholder="Vincule um jogo retrô" className="theme-control min-w-0 flex-1 px-3 py-2 text-sm"/><button type="button" onClick={()=>onSaveRetroGameId(Number(retroId)||undefined)} className="theme-control px-3 py-2 text-xs font-bold text-white" style={{backgroundColor:'var(--accent)'}}>Vincular</button></div>{retroInfo&&<><p className="text-xs font-bold">{retroInfo.title}: {retroInfo.unlocked}/{retroInfo.total}</p><progress className="w-full" value={retroInfo.unlocked} max={Math.max(1,retroInfo.total)}/>{retroInfo.achievements.map(a=><p key={a.Title} className="text-xs">🏆 {a.Title} · {a.Points} pts</p>)}</>}</div>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 sm:grid sm:grid-cols-2">
           {items.map((item, idx) => {
             const Icon = item.icon;
             const isFocused = focusedIndex === idx;

@@ -4,7 +4,6 @@ import { Game, ScreensaverMode } from '../types';
 import {
   extractSteamAppId,
   fetchSteamCdnHero,
-  getStoredSteamGridDbKey,
   searchSteamGridDbHero,
 } from '../utils/coverSearch';
 import { Logo } from './Logo';
@@ -67,12 +66,11 @@ export const ScreensaverOverlay: React.FC<ScreensaverOverlayProps> = ({
   const [slideIndex, setSlideIndex] = useState(0);
   const [prevSlideIndex, setPrevSlideIndex] = useState<number | null>(null);
 
-  // Fetch widescreen SteamGridDB Heroes (if API Key configured) & Steam CDN Heroes in background
+  // Fetch widescreen SteamGridDB Heroes & Steam CDN Heroes in background
   useEffect(() => {
     if (mode !== 'library-slideshow' || orderedGames.length === 0) return;
 
     let cancelled = false;
-    const apiKey = getStoredSteamGridDbKey();
 
     const loadHeroes = async () => {
       // Load sequentially/in small batches to avoid bursting requests
@@ -80,9 +78,7 @@ export const ScreensaverOverlay: React.FC<ScreensaverOverlayProps> = ({
         if (cancelled) return;
         let resolvedHero: string | null = null;
 
-        if (apiKey) {
-          resolvedHero = await searchSteamGridDbHero(game.title, apiKey);
-        }
+        resolvedHero = await searchSteamGridDbHero(game.title, '');
 
         if (!resolvedHero) {
           const appId = extractSteamAppId(game.command);

@@ -10,7 +10,6 @@ interface GameFormModalProps {
   coverFinderRef?: RefObject<CoverFinderHandle | null>;
   isCoverFinderOpen?: boolean;
   onCoverFinderOpenChange?: (open: boolean) => void;
-  onGoToApiSettings?: () => void;
   onSave: (game: Game) => void;
   onClose: () => void;
 }
@@ -19,7 +18,7 @@ const PLATFORMS: Platform[] = ["Steam", "Epic", "Heroic", "GOG", "Xbox", "Lutris
 const CONSOLE_PRESETS = ["PS2", "PS1", "PSP", "Switch", "N64", "Xbox", "Wii U", "Dreamcast"];
 
 export const GameFormModal: React.FC<GameFormModalProps> = ({
-  initialGame, coverFinderRef, isCoverFinderOpen: controlledFinderOpen, onCoverFinderOpenChange, onGoToApiSettings, onSave, onClose,
+  initialGame, coverFinderRef, isCoverFinderOpen: controlledFinderOpen, onCoverFinderOpenChange, onSave, onClose,
 }) => {
   const isEditing = Boolean(initialGame);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -166,7 +165,7 @@ export const GameFormModal: React.FC<GameFormModalProps> = ({
           </form>
         </div>
       </div>
-      {showCoverFinder && <CoverFinderModal ref={coverFinderRef} initialTitle={title} initialCommand={command} onSelectCover={(u) => { setCoverUrl(u); setShowCoverFinder(false); }} onGoToApiSettings={onGoToApiSettings ? () => { setShowCoverFinder(false); onGoToApiSettings(); } : undefined} onClose={() => setShowCoverFinder(false)} />}
+      {showCoverFinder && <CoverFinderModal ref={coverFinderRef} initialTitle={title} initialCommand={command} onSelectCover={(u) => { setCoverUrl(u); setShowCoverFinder(false); }} onClose={() => setShowCoverFinder(false)} />}
     </>
   );
 };

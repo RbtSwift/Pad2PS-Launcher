@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Edit3, Filter, Heart, Play, Search, Trash2, X } from 'lucide-react';
+import { Edit3, Filter, FolderOpen, Heart, Play, Search, Trash2, X } from 'lucide-react';
 import { Game, LibraryPlatformFilter } from '../types';
 import { CancelButtonIcon, ConfirmButtonIcon } from './ControllerIcons';
 import { fetchIgdbMetadata, type IgdbGameMetadata } from '../utils/igdb';
@@ -15,6 +15,7 @@ interface GameOptionsModalProps {
   onToggleFavorite: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onOpenFolder?: () => void;
   onSaveRetroGameId: (gameId: number | undefined) => void;
   onClose: () => void;
 }
@@ -30,6 +31,7 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
   onToggleFavorite,
   onEdit,
   onDelete,
+  onOpenFolder,
   onSaveRetroGameId,
   onClose,
 }) => {
@@ -104,11 +106,12 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
       action: onEdit,
       danger: false,
     },
+    ...(onOpenFolder ? [{ id: 'folder', label: 'Abrir pasta do jogo', icon: FolderOpen, action: onOpenFolder, danger: false }] : []),
     {
       id: 'delete',
       label: confirmDelete
-        ? 'Confirmar Remoção da Biblioteca'
-        : 'Remover Jogo da Biblioteca',
+        ? 'Confirmar Ocultação da Biblioteca'
+        : 'Ocultar / Remover da Biblioteca',
       icon: Trash2,
       action: () => {
         if (!confirmDelete) {
@@ -131,7 +134,7 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="theme-surface w-full max-w-md p-6">
+      <div className="theme-surface w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4 mb-5">
           <div className="min-w-0">
             <p
@@ -157,8 +160,18 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
           </button>
         </div>
 
+        <section className="relative isolate overflow-hidden rounded-2xl border border-white/10 mb-4 min-h-44 flex items-end" style={{ backgroundColor: 'var(--bg-deep)' }}>
+          {game.coverUrl && <img src={game.coverUrl} alt="" className="absolute inset-0 -z-20 h-full w-full object-cover opacity-40 blur-xl scale-110" />}
+          <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/90 via-black/55 to-black/20" />
+          {game.coverUrl && <img src={game.coverUrl} alt={`Capa de ${game.title}`} className="m-4 h-36 w-24 shrink-0 rounded-lg object-cover shadow-xl" />}
+          <div className="min-w-0 p-4 pl-0">
+            <span className="mb-2 inline-flex rounded-full bg-[var(--accent)]/20 px-2.5 py-1 text-xs font-bold text-[var(--text-primary)]">{game.platformLabel || game.platform}{game.consoleSystem ? ` · ${game.consoleSystem}` : ''}</span>
+            <h3 className="font-display text-xl sm:text-2xl font-extrabold text-white">{game.title}</h3>
+            {game.genre && <p className="mt-1 text-sm text-white/70">{game.genre}</p>}
+          </div>
+        </section>
         {game.steamLogoUrl && <img src={game.steamLogoUrl} alt={`${game.title} logo`} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="max-h-14 max-w-[70%] object-contain mb-3" />}
-        {igdbMetadata && <section className="mb-4 p-3 rounded-lg bg-white/5 space-y-2 text-xs text-[var(--text-secondary)]"><h3 className="font-bold text-sm text-[var(--text-primary)]">Ficha técnica · IGDB</h3>{igdbMetadata.year && <p>Lançamento: {igdbMetadata.year}</p>}{igdbMetadata.genres.length > 0 && <p>Gêneros: {igdbMetadata.genres.join(', ')}</p>}{igdbMetadata.developers.length > 0 && <p>Desenvolvedora: {igdbMetadata.developers.join(', ')}</p>}{igdbMetadata.summary && <p className="max-h-24 overflow-y-auto">{igdbMetadata.summary}</p>}{igdbMetadata.screenshots.length > 0 && <div className="flex gap-2 overflow-x-auto py-1">{igdbMetadata.screenshots.map((url) => <img key={url} src={url} alt={`Captura de ${igdbMetadata.name}`} loading="lazy" className="h-20 w-auto rounded object-cover" />)}</div>}<p className="text-[10px]">Metadados fornecidos por IGDB.</p></section>}
+        {igdbMetadata && <section className="mb-4 p-4 rounded-xl bg-white/5 space-y-2 text-sm text-[var(--text-secondary)]"><h3 className="font-bold text-base text-[var(--text-primary)]">Ficha técnica</h3><div className="flex flex-wrap gap-x-4 gap-y-1">{igdbMetadata.year && <p>Lançamento: {igdbMetadata.year}</p>}{igdbMetadata.rating !== null && <p>Avaliação: {Math.round(igdbMetadata.rating)}%</p>}{igdbMetadata.genres.length > 0 && <p>Gêneros: {igdbMetadata.genres.join(', ')}</p>}{igdbMetadata.developers.length > 0 && <p>Desenvolvedora: {igdbMetadata.developers.join(', ')}</p>}</div>{igdbMetadata.summary && <p className="max-h-32 overflow-y-auto leading-relaxed">{igdbMetadata.summary}</p>}{igdbMetadata.screenshots.length > 0 && <div className="flex gap-2 overflow-x-auto py-1">{igdbMetadata.screenshots.map((url) => <img key={url} src={url} alt={`Captura de ${igdbMetadata.name}`} loading="lazy" className="h-24 w-auto rounded object-cover" />)}</div>}<p className="text-[10px]">Metadados fornecidos por IGDB.</p></section>}
         {(typeof game.steamPlaytimeHours === 'number' || achievements) && (
           <div className="mb-4 p-3 rounded-lg bg-white/5 text-xs text-[var(--text-secondary)] space-y-1">
             {typeof game.steamPlaytimeHours === 'number' && <p>{game.steamPlaytimeHours.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h jogadas na Steam{game.steamRecentlyPlayed ? ' · jogado nas últimas 2 semanas' : ''}</p>}

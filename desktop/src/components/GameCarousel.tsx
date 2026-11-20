@@ -327,7 +327,7 @@ export const GameCarousel: React.FC<GameCarouselProps> = ({
 
           <div
             ref={trackRef}
-            className="w-full flex items-start gap-6 lg:gap-8 overflow-x-auto no-scrollbar pl-10 lg:pl-16 pr-[70vw] pt-4 pb-12 scroll-smooth"
+            className="w-full flex items-start gap-6 lg:gap-8 overflow-x-auto no-scrollbar pl-[7vw] pr-[70vw] pt-8 pb-12 scroll-smooth"
             role="listbox"
             aria-label="Carrossel de Jogos"
           >

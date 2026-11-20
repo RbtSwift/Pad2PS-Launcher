@@ -124,6 +124,14 @@ export interface Game {
   lastPlayed?: string;
 }
 
+export interface SteamSyncData {
+  steamId: string;
+  profile: { name: string; avatar: string; profileUrl: string };
+  privateProfile: boolean;
+  games: Array<{ appId: number; name: string; playtimeForever: number; playtimeTwoWeeks: number }>;
+  recentIds: number[];
+}
+
 export interface LauncherSettings {
   theme: ThemeId;
   customThemeConfig: CustomThemeConfig;

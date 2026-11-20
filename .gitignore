@@ -11,6 +11,7 @@ flatpak_repo/
 npm-debug.log*
 .env
 .env.local
+desktop/steamgriddb-secret.cjs
 
 # Python
 __pycache__/

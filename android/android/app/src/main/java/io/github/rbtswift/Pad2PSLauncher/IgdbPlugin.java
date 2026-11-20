@@ -37,7 +37,12 @@ public class IgdbPlugin extends Plugin {
     }
     private JSONObject credentials() throws Exception {
         String stored = getContext().getSharedPreferences(PREFS, 0).getString(CREDENTIAL_KEY, null);
-        if (stored == null) return null;
+        if (stored == null) {
+            String clientId = BuildConfig.IGDB_CLIENT_ID;
+            String clientSecret = BuildConfig.IGDB_CLIENT_SECRET;
+            if (clientId == null || clientId.isEmpty() || clientSecret == null || clientSecret.isEmpty()) return null;
+            return new JSONObject().put("clientId", clientId).put("clientSecret", clientSecret);
+        }
         byte[] payload = Base64.decode(stored, Base64.NO_WRAP); byte[] iv = new byte[12]; byte[] encrypted = new byte[payload.length - 12];
         System.arraycopy(payload, 0, iv, 0, 12); System.arraycopy(payload, 12, encrypted, 0, encrypted.length);
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding"); cipher.init(Cipher.DECRYPT_MODE, secretKey(), new GCMParameterSpec(128, iv));

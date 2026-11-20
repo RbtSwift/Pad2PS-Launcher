@@ -3,12 +3,19 @@ apply plugin: 'com.android.application'
 android {
     namespace "io.github.rbtswift.Pad2PSLauncher"
     compileSdk rootProject.ext.compileSdkVersion
+    buildFeatures { buildConfig true }
+    def steamGridDbKey = (System.getenv("STEAMGRIDDB_API_KEY") ?: project.findProperty("STEAMGRIDDB_API_KEY") ?: "").toString().replace('\\', '\\\\').replace('"', '\\"')
+    def igdbClientId = (System.getenv("IGDB_CLIENT_ID") ?: project.findProperty("IGDB_CLIENT_ID") ?: "").toString().replace('\\', '\\\\').replace('"', '\\"')
+    def igdbClientSecret = (System.getenv("IGDB_CLIENT_SECRET") ?: project.findProperty("IGDB_CLIENT_SECRET") ?: "").toString().replace('\\', '\\\\').replace('"', '\\"')
     defaultConfig {
         applicationId "io.github.rbtswift.Pad2PSLauncher"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 16
         versionName "1.0.15"
+        buildConfigField "String", "STEAMGRIDDB_API_KEY", "\"${steamGridDbKey}\""
+        buildConfigField "String", "IGDB_CLIENT_ID", "\"${igdbClientId}\""
+        buildConfigField "String", "IGDB_CLIENT_SECRET", "\"${igdbClientSecret}\""
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'

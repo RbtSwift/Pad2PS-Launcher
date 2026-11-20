@@ -72,6 +72,21 @@ import { extractSteamAppId, findAutomaticSteamGridDbCover } from './utils/coverS
 const GAMES_STORAGE_KEY = 'pad2ps_launcher_games_v1';
 const SETTINGS_STORAGE_KEY = 'pad2ps_launcher_settings_v1';
 const ONBOARDED_STORAGE_KEY = 'pad2ps_launcher_onboarded_v1';
+const HIDDEN_GAMES_STORAGE_KEY = 'pad2ps_launcher_hidden_game_ids_v1';
+
+const NON_GAME_TITLE_NAMES = ['steam', 'epic games launcher', 'epic games', 'ubisoft connect', 'ea app', 'origin', 'gog galaxy', 'battle.net', 'battle net', 'rockstar games launcher', 'heroic', 'lutris', 'play store', 'google play store', 'aurora store', 'f-droid', 'steamworks common redistributables'];
+const NON_GAME_COMPONENTS = ['directx setup', 'directx runtime', 'vcredist', 'visual c++ redistributable', 'steamworks common redistributables', 'proton experimental', 'proton easyanticheat'];
+function isNonGameEntry(item: { title?: unknown; command?: unknown; platformLabel?: unknown }): boolean {
+  const title = String(item.title ?? '').trim().toLocaleLowerCase();
+  const command = String(item.command ?? '').toLocaleLowerCase();
+  return NON_GAME_TITLE_NAMES.includes(title) || NON_GAME_COMPONENTS.some((name) => title.includes(name) || command.includes(name)) || /(?:^|[\/])(?:steam|epicgameslauncher|ubisoftconnect|eadesktop|origin|goggalaxy|battlenet|rockstar|heroic|lutris|com\.android\.vending|org\.fdroid)[\/._-]/i.test(command);
+}
+function loadHiddenGameIds(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(HIDDEN_GAMES_STORAGE_KEY) || '[]');
+    return Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string') : [];
+  } catch { return []; }
+}
 
 function mergeExternalGames(previous: Game[], scanned: Game[]): Game[] {
   const matched = new Set<string>();
@@ -224,8 +239,8 @@ function loadStoredGames(): Game[] {
     const raw = localStorage.getItem(GAMES_STORAGE_KEY);
     if (!raw) return DEFAULT_GAMES;
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
+    if (Array.isArray(parsed)) {
+      return parsed.filter((game) => game && !isNonGameEntry(game) && !/^(cyber-drift-2099|elden-spire-shadowfall|neon-odyssey-zero|chronicles-of-valoria|apex-horizon-motorsport|shadow-of-the-colossus-ps2|gran-turismo-4-spec|starlight-tactics)$/.test(String(game.id || '')));
     }
   } catch {
     // fallback to defaults
@@ -332,6 +347,7 @@ function matchesPlatformFilter(
 export default function App() {
   const connectedGamepadRef = useRef<string | null>(null);
   const [games, setGames] = useState<Game[]>(loadStoredGames);
+  const [hiddenGameIds, setHiddenGameIds] = useState<string[]>(loadHiddenGameIds);
   const [settings, setSettings] = useState<LauncherSettings>(loadStoredSettings);
 
   // Page 2 (Biblioteca de Jogos) is the initial home page
@@ -391,6 +407,10 @@ export default function App() {
       // ignore quota errors
     }
   }, [games]);
+
+  useEffect(() => {
+    try { localStorage.setItem(HIDDEN_GAMES_STORAGE_KEY, JSON.stringify(hiddenGameIds)); } catch { /* storage is optional */ }
+  }, [hiddenGameIds]);
 
   // Fill missing covers in the background, with at most three SteamGridDB lookups at once.
   useEffect(() => {
@@ -609,6 +629,7 @@ export default function App() {
               typeof item === 'object' &&
               typeof (item as Record<string, unknown>).title === 'string'
           )
+          .filter((item) => !isNonGameEntry(item as Record<string, unknown>))
           .map((item, idx) => ({
             id: String(item.id || `ext-${Date.now()}-${idx}`),
             title: String(item.title),
@@ -665,14 +686,15 @@ export default function App() {
   }, []);
 
   const visibleGames = useMemo(() => {
+    const availableGames = games.filter((game) => !hiddenGameIds.includes(game.id));
     if (activePage === 'favorites') {
-      return games.filter((g) => g.favorite);
+      return availableGames.filter((g) => g.favorite);
     }
     if (activePage === 'library') {
-      return games.filter((g) => matchesPlatformFilter(g, platformFilter));
+      return availableGames.filter((g) => matchesPlatformFilter(g, platformFilter));
     }
-    return games;
-  }, [games, activePage, platformFilter]);
+    return availableGames;
+  }, [games, hiddenGameIds, activePage, platformFilter]);
 
   const maxCarouselSlots =
     activePage === 'library'
@@ -893,8 +915,12 @@ export default function App() {
 
   const handleDeleteGame = useCallback((game: Game) => {
     soundEngine.playCancel();
-    setGames((prev) => prev.filter((g) => g.id !== game.id));
+    setHiddenGameIds((prev) => prev.includes(game.id) ? prev : [...prev, game.id]);
     setActiveModal('none');
+  }, []);
+
+  const handleRestoreHiddenGame = useCallback((gameId: string) => {
+    setHiddenGameIds((previous) => previous.filter((id) => id !== gameId));
   }, []);
 
   const handleOpenOptions = useCallback(() => {
@@ -910,14 +936,7 @@ export default function App() {
     setActiveModal('translator');
   }, []);
 
-  const handleJumpToSteamGridDbSettings = useCallback(() => {
-    soundEngine.playTab();
-    setIsFormCoverFinderOpen(false);
-    setActiveModal('none');
-    setEditingGame(null);
-    setSystemCategory('integrations');
-    setActivePage('system');
-  }, []);
+
 
   const handleCompleteOnboarding = useCallback((layout: ControllerLayout) => {
     soundEngine.playConfirm();
@@ -1475,6 +1494,8 @@ export default function App() {
             settings={settings}
             detectedLayout={detectedLayout}
             games={games}
+            hiddenGames={games.filter((game) => hiddenGameIds.includes(game.id))}
+            onRestoreHiddenGame={handleRestoreHiddenGame}
             initialCategory={systemCategory}
             buttonMapping={buttonMapping}
             capturingAction={capturingAction}
@@ -1544,15 +1565,7 @@ export default function App() {
               setLibraryFocusZone('games');
               setSelectedIndex(0);
             }}
-            onResetDefaultGames={() => {
-              soundEngine.playConfirm();
-              setGames(DEFAULT_GAMES);
-              setActivePage('library');
-              setPlatformFilter('Todos');
-              setFocusedFilterIndex(0);
-              setLibraryFocusZone('games');
-              setSelectedIndex(0);
-            }}
+            onResetDefaultGames={() => setGames(DEFAULT_GAMES)}
             onSleepMode={() => setIsSleeping(true)}
             onOpenControllerTest={() => setActiveModal('controller-test')}
             onSteamSyncGames={handleSteamSyncGames}
@@ -1597,7 +1610,12 @@ export default function App() {
               setLibraryFocusZone('games');
             }}
             onSelectIndex={handleSelectIndex}
-            onPlayGame={handlePlayGame}
+            onPlayGame={(game) => {
+              const index = visibleGames.findIndex((item) => item.id === game.id);
+              if (index >= 0) setSelectedIndex(index);
+              setModalFocusIndex(0);
+              setActiveModal('game-options');
+            }}
             onAddGame={() => {
               soundEngine.playMove();
               setEditingGame(null);
@@ -1634,7 +1652,8 @@ export default function App() {
               setEditingGame(null);
               setActiveModal('add-game');
             } else if (selectedGame) {
-              handlePlayGame(selectedGame);
+              setModalFocusIndex(0);
+              setActiveModal('game-options');
             }
           }}
           onRandomGame={handleRandomGame}
@@ -1703,6 +1722,11 @@ export default function App() {
               setActiveModal('edit-game');
             }}
             onDelete={() => handleDeleteGame(selectedGame)}
+            onOpenFolder={() => {
+              fetch(`/api/open-game-folder?command=${encodeURIComponent(selectedGame.command)}`)
+                .then(async (response) => { const result = await response.json(); if (!response.ok) throw new Error(result.error || ''); })
+                .catch(() => window.alert('Não foi possível localizar a pasta do jogo.'));
+            }}
             onSaveRetroGameId={(retroGameId) => setGames((previous) => previous.map((game) => game.id === selectedGame.id ? { ...game, retroGameId } : game))}
             onClose={() => {
               soundEngine.playCancel();
@@ -1725,7 +1749,6 @@ export default function App() {
               );
               setActiveModal('none');
             }}
-            onGoToApiSettings={handleJumpToSteamGridDbSettings}
             onClose={() => {
               soundEngine.playCancel();
               setActiveModal('none');
@@ -1740,7 +1763,6 @@ export default function App() {
             coverFinderRef={coverFinderRef}
             isCoverFinderOpen={isFormCoverFinderOpen}
             onCoverFinderOpenChange={setIsFormCoverFinderOpen}
-            onGoToApiSettings={handleJumpToSteamGridDbSettings}
             onSave={handleSaveGame}
             onClose={() => {
               soundEngine.playCancel();

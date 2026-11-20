@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Battery, BatteryCharging, ExternalLink, Gamepad2, Headphones, Search } from "lucide-react";
+import { Battery, BatteryCharging, ExternalLink, Gamepad2, Headphones, Search, ShoppingBag } from "lucide-react";
+import { Capacitor } from '@capacitor/core';
 import { DEFAULT_TRANSLATOR_URL } from '../data/defaultGames';
 import { Logo } from './Logo';
 
@@ -8,6 +9,7 @@ interface TopBarProps {
   translatorUrl?: string;
   onLogoClick?: () => void;
   onOpenSearch: () => void;
+  onOpenStore?: () => void;
 }
 
 interface BatteryManagerLike extends EventTarget {
@@ -20,6 +22,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   translatorUrl = DEFAULT_TRANSLATOR_URL,
   onLogoClick,
   onOpenSearch,
+  onOpenStore,
 }) => {
   const [btDevices, setBtDevices] = React.useState<
     { name: string; type: 'gamepad' | 'headset'; percentage: number; charging?: boolean }[]
@@ -151,6 +154,12 @@ export const TopBar: React.FC<TopBarProps> = ({
         >
           <Search className="w-5 h-5" />
         </button>
+
+        {Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android' && (
+          <button type="button" onClick={onOpenStore} title="Abrir loja escolhida" aria-label="Abrir loja" className="theme-control p-2.5 border text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent)] transition-colors cursor-pointer shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--bg-surface) 82%, transparent)', borderColor: 'var(--border-subtle)' }}>
+            <ShoppingBag className="w-5 h-5" />
+          </button>
+        )}
 
         <div
           className="hidden md:flex items-center gap-2 text-base lg:text-lg text-[var(--text-primary)] shrink-0"

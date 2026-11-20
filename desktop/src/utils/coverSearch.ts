@@ -1,5 +1,3 @@
-export const STEAMGRIDDB_KEY_STORAGE = 'pad2ps_steamgriddb_key';
-
 export interface OnlineCoverCandidate {
   id: string;
   url: string;
@@ -7,15 +5,6 @@ export interface OnlineCoverCandidate {
   source: 'Steam CDN' | 'SteamGridDB';
   label: string;
   dimensions: string;
-}
-
-export function getStoredSteamGridDbKey(): string {
-  try {
-    return localStorage.getItem(STEAMGRIDDB_KEY_STORAGE) ??
-      import.meta.env.VITE_STEAMGRIDDB_API_KEY ?? '';
-  } catch {
-    return import.meta.env.VITE_STEAMGRIDDB_API_KEY ?? '';
-  }
 }
 
 const AUTO_COVER_CACHE_KEY = 'pad2ps_steamgriddb_auto_covers_v1';
@@ -42,22 +31,20 @@ function readAutoCoverCache(): Record<string, AutoCoverCacheEntry> {
 
 /** Finds a vertical SteamGridDB grid and persistently caches both matches and misses. */
 export async function findAutomaticSteamGridDbCover(title: string): Promise<string | null> {
-  const key = getStoredSteamGridDbKey().trim();
   const query = cleanGameTitleForCoverSearch(title);
-  if (!key || !query) return null;
+  if (!query) return null;
 
   const cache = readAutoCoverCache();
   const cacheKey = query.toLocaleLowerCase();
   const cached = cache[cacheKey];
   if (cached && cached.expiresAt > Date.now()) return cached.url;
 
-  const headers: HeadersInit = { Authorization: `Bearer ${key}`, Accept: 'application/json' };
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 12000);
   let coverUrl: string | null = null;
   let cacheResult = false;
   try {
-    const search = await fetch(`https://www.steamgriddb.com/api/v2/search/autocomplete/${encodeURIComponent(query)}`, { headers, signal: controller.signal });
+    const search = await fetch(`/api/steamgriddb/search?q=${encodeURIComponent(query)}`, { signal: controller.signal });
     if (!search.ok) return null;
     cacheResult = true;
     const searchJson = await search.json() as { data?: SteamGridSearchItem[] };
@@ -65,13 +52,13 @@ export async function findAutomaticSteamGridDbCover(title: string): Promise<stri
     if (!matches.length) return null;
     const normalizedQuery = query.toLocaleLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     const game = matches.find((item) => item.name.toLocaleLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() === normalizedQuery) ?? matches[0];
-    const gridUrl = (dimensions: boolean) => `https://www.steamgriddb.com/api/v2/grids/game/${game.id}${dimensions ? '?dimensions=600x900&nsfw=false&humor=false' : '?nsfw=false&humor=false'}`;
-    let response = await fetch(gridUrl(true), { headers, signal: controller.signal });
+    const gridUrl = (dimensions: boolean) => `/api/steamgriddb/grids?gameId=${game.id}${dimensions ? '&dimensions=600x900' : ''}`;
+    let response = await fetch(gridUrl(true), { signal: controller.signal });
     if (!response.ok) return null;
     let gridsJson = await response.json() as { data?: SteamGridImageItem[] };
     let grids = Array.isArray(gridsJson.data) ? gridsJson.data : [];
     if (!grids.length) {
-      response = await fetch(gridUrl(false), { headers, signal: controller.signal });
+      response = await fetch(gridUrl(false), { signal: controller.signal });
       if (response.ok) {
         gridsJson = await response.json() as { data?: SteamGridImageItem[] };
         grids = Array.isArray(gridsJson.data) ? gridsJson.data : [];
@@ -88,19 +75,6 @@ export async function findAutomaticSteamGridDbCover(title: string): Promise<stri
     }
   }
   return coverUrl;
-}
-
-export function saveStoredSteamGridDbKey(key: string): void {
-  try {
-    const trimmed = key.trim();
-    if (trimmed) {
-      localStorage.setItem(STEAMGRIDDB_KEY_STORAGE, trimmed);
-    } else {
-      localStorage.removeItem(STEAMGRIDDB_KEY_STORAGE);
-    }
-  } catch {
-    // ignore storage errors
-  }
 }
 
 /**
@@ -189,23 +163,17 @@ export async function searchSteamGridDbCovers(
   error?: string;
 }> {
   const cleanQuery = query.trim();
-  const cleanKey = apiKey.trim();
+  void apiKey;
 
-  if (!cleanQuery || !cleanKey) {
+  if (!cleanQuery) {
     return { matchedGameName: null, covers: [] };
   }
 
-  const headers: HeadersInit = {
-    Authorization: `Bearer ${cleanKey}`,
-    Accept: 'application/json',
-  };
+
 
   try {
     const searchRes = await fetch(
-      `https://www.steamgriddb.com/api/v2/search/autocomplete/${encodeURIComponent(
-        cleanQuery
-      )}`,
-      { headers }
+      `/api/steamgriddb/search?q=${encodeURIComponent(cleanQuery)}`
     );
 
     if (searchRes.status === 401 || searchRes.status === 403) {
@@ -213,7 +181,7 @@ export async function searchSteamGridDbCovers(
         matchedGameName: null,
         covers: [],
         error:
-          'API Key do SteamGridDB inválida ou expirada. Verifique em Sistema → Capas & API SteamGridDB.',
+          'SteamGridDB não está configurado no processo seguro do aplicativo.',
       };
     }
 
@@ -237,8 +205,7 @@ export async function searchSteamGridDbCovers(
 
     const topGame = matches[0];
     const gridsRes = await fetch(
-      `https://www.steamgriddb.com/api/v2/grids/game/${topGame.id}?dimensions=600x900`,
-      { headers }
+      `/api/steamgriddb/grids?gameId=${topGame.id}&dimensions=600x900`
     );
 
     if (!gridsRes.ok) {
@@ -369,25 +336,19 @@ export async function searchSteamGridDbHero(
   apiKey: string
 ): Promise<string | null> {
   const cleanQuery = query.trim();
-  const cleanKey = apiKey.trim();
-  if (!cleanQuery || !cleanKey) return null;
+  void apiKey;
+  if (!cleanQuery) return null;
 
   const cacheKey = `sgdb-hero:${cleanQuery.toLowerCase()}`;
   if (heroCache.has(cacheKey)) {
     return heroCache.get(cacheKey) ?? null;
   }
 
-  const headers: HeadersInit = {
-    Authorization: `Bearer ${cleanKey}`,
-    Accept: 'application/json',
-  };
+
 
   try {
     const searchRes = await fetch(
-      `https://www.steamgriddb.com/api/v2/search/autocomplete/${encodeURIComponent(
-        cleanQuery
-      )}`,
-      { headers }
+      `/api/steamgriddb/search?q=${encodeURIComponent(cleanQuery)}`
     );
     if (!searchRes.ok) {
       heroCache.set(cacheKey, null);
@@ -406,8 +367,7 @@ export async function searchSteamGridDbHero(
     }
 
     const heroesRes = await fetch(
-      `https://www.steamgriddb.com/api/v2/heroes/game/${topGame.id}`,
-      { headers }
+      `/api/steamgriddb/heroes?gameId=${topGame.id}`
     );
     if (!heroesRes.ok) {
       heroCache.set(cacheKey, null);

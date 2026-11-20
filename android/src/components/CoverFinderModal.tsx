@@ -8,7 +8,6 @@ import React, {
 import {
   Check,
   Image as ImageIcon,
-  KeyRound,
   Loader2,
   Search,
   Sparkles,
@@ -17,7 +16,6 @@ import {
 import {
   extractSteamAppId,
   fetchSteamCdnCover,
-  getStoredSteamGridDbKey,
   OnlineCoverCandidate,
   searchSteamGridDbCovers,
 } from '../utils/coverSearch';
@@ -37,7 +35,6 @@ interface CoverFinderModalProps {
   initialTitle: string;
   initialCommand?: string;
   onSelectCover: (url: string) => void;
-  onGoToApiSettings?: () => void;
   onClose: () => void;
 }
 
@@ -50,7 +47,6 @@ export const CoverFinderModal = forwardRef<
       initialTitle,
       initialCommand = '',
       onSelectCover,
-      onGoToApiSettings,
       onClose,
     },
     ref
@@ -65,7 +61,6 @@ export const CoverFinderModal = forwardRef<
     const [focusedIndex, setFocusedIndex] = useState(0);
 
     const cardRefs = useRef<(HTMLButtonElement | null)[]>([]);
-    const apiKey = getStoredSteamGridDbKey();
 
     const runSearch = async (searchTerm: string, steamIdInput: string) => {
       const cleanTerm = searchTerm.trim();
@@ -95,8 +90,8 @@ export const CoverFinderModal = forwardRef<
       }
 
       // 2. SteamGridDB 600x900 lookup if API key is configured
-      if (apiKey && cleanTerm) {
-        const sgdb = await searchSteamGridDbCovers(cleanTerm, apiKey);
+      if (cleanTerm) {
+        const sgdb = await searchSteamGridDbCovers(cleanTerm, '');
         if (sgdb.covers.length > 0) {
           collected.push(...sgdb.covers);
           sgdbNote = `Resultados de "${sgdb.matchedGameName}" (600×900)`;
@@ -110,10 +105,8 @@ export const CoverFinderModal = forwardRef<
       if (collected.length === 0) {
         if (sgdbError) {
           setErrorMsg(sgdbError);
-        } else if (!apiKey && !cleanId) {
-          setStatusNote(
-            'Nenhuma chave SteamGridDB salva e nenhum AppID informado. Informe um AppID da Steam acima ou configure sua chave gratuita em Sistema → Capas & API SteamGridDB.'
-          );
+        } else if (!cleanId) {
+          setStatusNote('Nenhuma capa encontrada. Você ainda pode informar um AppID da Steam.');
         } else {
           setStatusNote(
             'Nenhuma capa vertical 600×900 encontrada para este termo ou AppID.'
@@ -271,40 +264,6 @@ export const CoverFinderModal = forwardRef<
               <span>Buscar</span>
             </button>
           </form>
-
-          {/* API Key banner if missing */}
-          {!apiKey && (
-            <div
-              className="theme-control mb-4 px-4 py-3 border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs sm:text-sm shrink-0"
-              style={{
-                backgroundColor: 'var(--bg-deep)',
-                borderColor: 'var(--border-subtle)',
-              }}
-            >
-              <div className="flex items-center gap-2.5 text-[var(--text-secondary)]">
-                <KeyRound
-                  className="w-4 h-4 shrink-0"
-                  style={{ color: 'var(--accent)' }}
-                />
-                <span>
-                  Buscando apenas por <strong className="text-[var(--text-primary)]">AppID da Steam</strong>. Configure sua chave gratuita do SteamGridDB para buscar por nome.
-                </span>
-              </div>
-              {onGoToApiSettings && (
-                <button
-                  type="button"
-                  onClick={onGoToApiSettings}
-                  className="theme-control px-3 py-1.5 border text-xs font-semibold text-[var(--text-primary)] hover:border-white/40 transition-colors cursor-pointer shrink-0"
-                  style={{
-                    backgroundColor: 'var(--bg-surface)',
-                    borderColor: 'var(--accent)',
-                  }}
-                >
-                  Configurar API Key
-                </button>
-              )}
-            </div>
-          )}
 
           {errorMsg && (
             <div className="theme-control mb-4 px-4 py-3 bg-rose-500/15 border border-rose-500/40 text-xs sm:text-sm text-rose-200 shrink-0">
