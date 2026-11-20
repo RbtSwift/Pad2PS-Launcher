@@ -21,7 +21,7 @@ import { TopBar } from './components/TopBar';
 import { TranslatorModal } from './components/TranslatorModal';
 import { UpdateModal } from './components/UpdateModal';
 import { ControllerTestModal } from './components/ControllerTestModal';
-import { checkForAppUpdate, type UpdateCheckResult } from './utils/updateChecker';
+import { checkForAppUpdate, CURRENT_APP_VERSION, type UpdateCheckResult } from './utils/updateChecker';
 import {
   WelcomeControllerModal,
   WelcomeControllerModalHandle,
@@ -357,7 +357,7 @@ export default function App() {
 
   useEffect(() => {
     let isMounted = true;
-    checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.14')
+    checkForAppUpdate('RbtSwift/Pad2PS-Launcher', CURRENT_APP_VERSION)
       .then((res) => {
         if (isMounted && res.hasUpdate) {
           setUpdateInfo(res);

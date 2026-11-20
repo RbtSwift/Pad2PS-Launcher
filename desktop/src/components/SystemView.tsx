@@ -38,7 +38,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import { checkForAppUpdate, type UpdateCheckResult } from '../utils/updateChecker';
+import { checkForAppUpdate, CURRENT_APP_VERSION, type UpdateCheckResult } from '../utils/updateChecker';
 import { DEFAULT_TRANSLATOR_URL, THEMES } from '../data/defaultGames';
 import {
   ControllerLayout,
@@ -537,7 +537,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
         setIsCheckingUpdates(true);
         soundEngine.playMove();
         showToast('Verificando atualizações no GitHub...');
-        const res = await checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.14');
+        const res = await checkForAppUpdate('RbtSwift/Pad2PS-Launcher', CURRENT_APP_VERSION);
         if (res.hasUpdate && onOpenUpdateModal) {
           soundEngine.playConfirm();
           onOpenUpdateModal(res);
@@ -546,7 +546,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           showToast('Não foi possível verificar atualizações. Sem conexão.');
         } else {
           soundEngine.playConfirm();
-          showToast('O Pad2PS Launcher está atualizado (v1.0.14)!');
+          showToast(`O Pad2PS Launcher está atualizado (v${CURRENT_APP_VERSION})!`);
         }
       } catch {
         showToast('Erro ao verificar atualizações.');
@@ -2981,7 +2981,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                               Verificar Atualizações
                             </p>
                             <p className="text-sm lg:text-base text-[var(--text-secondary)] mt-0.5 leading-relaxed">
-                              Versão v1.0.14 instalada. Consulta releases oficiais no GitHub e oferece downloads compatíveis.
+                              Versão v{CURRENT_APP_VERSION} instalada. Consulta releases oficiais no GitHub e oferece downloads compatíveis.
                             </p>
                           </div>
                         </div>

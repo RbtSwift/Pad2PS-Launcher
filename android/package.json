@@ -1,7 +1,7 @@
 {
   "name": "pad2ps-launcher-android",
   "private": true,
-  "version": "1.0.14",
+  "version": "1.0.15",
   "type": "module",
   "description": "Central de jogos estilo console com navegacao completa por controle para Android",
   "author": {

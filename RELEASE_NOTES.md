@@ -1,11 +1,13 @@
 ## Português (Brasil)
 
-- Ajusta as proporções da interface Android em celulares e tablets usados na horizontal.
-- Dimensiona capas, filtros, navegação e cabeçalho conforme o espaço disponível, mantendo a biblioteca equilibrada em telas menores e maiores.
-- Reorganiza as configurações e diálogos para aproveitar melhor a área útil sem alterar a interface Desktop.
+- Corrige a sincronização de perfis Steam com as versões corretas da Steam Web API.
+- Aceita SteamID64 e links de perfil com espaços acidentais, barra final e parâmetros; mensagens de erro agora explicam falhas de chave, perfil e conexão.
+- Reúne SteamGridDB, Steam, RetroAchievements e IGDB na aba **Integrações**, com cartões adaptados para Desktop e Android.
+- Adiciona um aviso de privacidade: não há servidor de coleta, e credenciais e dados sincronizados permanecem no dispositivo.
 
 ## English
 
-- Refines Android interface proportions for phones and tablets in landscape orientation.
-- Sizes game covers, filters, navigation, and the header to the available space, keeping the library balanced on both smaller and larger screens.
-- Reorganizes settings and dialogs to use the available area more effectively without changing the Desktop interface.
+- Fixes Steam profile synchronization by using the correct Steam Web API endpoint versions.
+- Accepts SteamID64 and profile links with accidental whitespace, trailing slashes, or query parameters; error messages now clarify key, profile, and network failures.
+- Brings SteamGridDB, Steam, RetroAchievements, and IGDB together in the **Integrations** settings page, with cards adapted for Desktop and Android.
+- Adds a privacy notice: there is no data collection server, and credentials and synchronized data stay on the device.
