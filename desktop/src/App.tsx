@@ -357,7 +357,7 @@ export default function App() {
 
   useEffect(() => {
     let isMounted = true;
-    checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.12')
+    checkForAppUpdate('RbtSwift/Pad2PS-Launcher', '1.0.13')
       .then((res) => {
         if (isMounted && res.hasUpdate) {
           setUpdateInfo(res);

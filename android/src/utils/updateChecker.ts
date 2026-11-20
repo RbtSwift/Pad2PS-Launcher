@@ -21,7 +21,7 @@ export interface UpdateCheckResult {
   error?: string;
 }
 
-export const CURRENT_APP_VERSION = '1.0.12';
+export const CURRENT_APP_VERSION = '1.0.13';
 
 export function compareSemver(v1: string, v2: string): number {
   const parseParts = (v: string) =>
