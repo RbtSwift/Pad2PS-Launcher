@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Tag da release existente ou planejada (ex.: v1.0.14)"
+        description: "Tag da release existente ou planejada (ex.: v1.0.19)"
         required: true
         type: string
 
@@ -16,10 +16,12 @@ permissions:
 
 jobs:
   build-linux:
-    name: Desktop Linux (.AppImage, .deb, .rpm, .tar.gz)
+    name: Desktop Linux (.AppImage, .deb, .rpm, .tar.gz, .flatpak)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Configurar Node.js
         uses: actions/setup-node@v4
@@ -28,8 +30,12 @@ jobs:
           cache: 'npm'
           cache-dependency-path: desktop/package-lock.json
 
-      - name: Instalar ferramentas de empacotamento RPM
-        run: sudo apt-get update && sudo apt-get install -y rpm
+      - name: Instalar ferramentas de empacotamento Linux
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder rpm
+          flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak install --noninteractive --user flathub org.freedesktop.Platform//25.08 org.freedesktop.Sdk//25.08
 
       - name: Instalar dependencias e compilar Vite + AppImage
         working-directory: desktop
@@ -41,16 +47,28 @@ jobs:
           npm ci
           node -e 'require("fs").writeFileSync("steamgriddb-secret.cjs", "module.exports = " + JSON.stringify({ STEAMGRIDDB_API_KEY: process.env.STEAMGRIDDB_API_KEY || "", IGDB_CLIENT_ID: process.env.IGDB_CLIENT_ID || "", IGDB_CLIENT_SECRET: process.env.IGDB_CLIENT_SECRET || "" }) + ";")'
           npm run build
-          npx electron-builder --linux AppImage --publish never
+          npx electron-builder --linux AppImage dir --publish never
 
       - name: Empacotar .deb, .rpm e .tar.gz
         working-directory: desktop
+        env:
+          TAG_NAME: ${{ inputs.release_tag || github.ref_name }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
+          EXPECTED_VERSION="${TAG_NAME#v}"
+          if [[ "$VERSION" != "$EXPECTED_VERSION" ]]; then
+            echo "::error::Tag $TAG_NAME does not match desktop/package.json version $VERSION"
+            exit 1
+          fi
           mkdir -p artifacts
           cp release/*.AppImage "artifacts/Pad2PS-Launcher-${VERSION}-x86_64.AppImage"
           chmod +x "artifacts/Pad2PS-Launcher-${VERSION}-x86_64.AppImage"
-          tar -czf "artifacts/Pad2PS-Launcher-${VERSION}-x86_64.tar.gz" -C release linux-unpacked
+          tar -czf "artifacts/Pad2PS-Launcher-${VERSION}-x86_64.tar.gz" \
+            -C release linux-unpacked \
+            -C "$GITHUB_WORKSPACE/desktop" \
+            pad2ps-launcher-bin.sh pad2ps-launcher-snap.sh \
+            pad2ps-launcher.desktop icon-256.png icon.png \
+            io.github.rbtswift.Pad2PSLauncher.metainfo.xml
 
           # .deb nativo
           mkdir -p build_deb/DEBIAN build_deb/opt/Pad2PS-Launcher build_deb/usr/bin build_deb/usr/share/applications build_deb/usr/share/icons/hicolor/256x256/apps build_deb/usr/share/icons/hicolor/512x512/apps build_deb/usr/share/metainfo build_deb/etc/apt/sources.list.d
@@ -109,6 +127,15 @@ jobs:
           rpmbuild --define "_topdir $(pwd)/build_rpm" -bb build_rpm/SPECS/pad2ps-launcher.spec
           cp build_rpm/RPMS/x86_64/*.rpm "artifacts/Pad2PS-Launcher-${VERSION}-x86_64.rpm"
 
+      - name: Criar bundle Flatpak
+        working-directory: desktop
+        run: |
+          flatpak-builder --user --install-deps-from=flathub --force-clean \
+            --repo=flatpak-repo flatpak-build io.github.rbtswift.Pad2PSLauncher.yml
+          flatpak build-bundle flatpak-repo \
+            "artifacts/Pad2PS-Launcher-$(node -p "require('./package.json').version")-x86_64.flatpak" \
+            io.github.rbtswift.Pad2PSLauncher
+
       - uses: actions/upload-artifact@v4
         with:
           name: linux-artifacts
@@ -119,6 +146,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Configurar Node.js
         uses: actions/setup-node@v4
@@ -152,6 +181,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Configurar Node.js
         uses: actions/setup-node@v4

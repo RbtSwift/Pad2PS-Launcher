@@ -1,0 +1,43 @@
+name: pad2ps-launcher
+base: core24
+version: '1.0.19'
+summary: Console-style game launcher with gamepad navigation
+description: |
+  Pad2PS Launcher brings games and emulators together in a console-style
+  interface with gamepad navigation, library search, cover art, and themes.
+grade: stable
+confinement: strict
+architectures:
+  - build-on: amd64
+icon: snap/payload/icon.png
+
+parts:
+  app:
+    plugin: dump
+    source: snap/payload
+    organize:
+      linux-unpacked: opt/Pad2PS-Launcher
+      icon.png: meta/gui/pad2ps-launcher.png
+      pad2ps-launcher.desktop: meta/gui/pad2ps-launcher.desktop
+  launcher:
+    plugin: dump
+    source: snap
+    stage:
+      - launcher.sh
+    organize:
+      launcher.sh: bin/pad2ps-launcher
+
+apps:
+  pad2ps-launcher:
+    command: bin/pad2ps-launcher
+    desktop: meta/gui/pad2ps-launcher.desktop
+    plugs:
+      - desktop
+      - desktop-legacy
+      - home
+      - network
+      - opengl
+      - audio-playback
+      - removable-media
+      - wayland
+      - x11

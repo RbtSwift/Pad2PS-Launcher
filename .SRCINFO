@@ -1,0 +1,18 @@
+pkgbase = pad2ps-launcher-bin
+	pkgdesc = Console-style game launcher for Linux with full gamepad navigation
+	pkgver = 1.0.19
+	pkgrel = 1
+	url = https://github.com/RbtSwift/Pad2PS-Launcher
+	arch = x86_64
+	license = MIT
+	depends = alsa-lib
+	depends = at-spi2-core
+	depends = gtk3
+	depends = libnotify
+	depends = libxss
+	depends = nss
+	depends = xdg-utils
+	source = Pad2PS-Launcher-1.0.19-x86_64.tar.gz::https://github.com/RbtSwift/Pad2PS-Launcher/releases/download/v1.0.19/Pad2PS-Launcher-1.0.19-x86_64.tar.gz
+	sha256sums = 2df034b3301504fb7283c868a6ae3860ce5a1431747fbf2fe52ccfbe63499532
+
+pkgname = pad2ps-launcher-bin

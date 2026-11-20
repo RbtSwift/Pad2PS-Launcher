@@ -1,0 +1,120 @@
+name: Publish Linux Stores
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish-snap:
+    name: Publish Snap Store package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Snap Store credentials
+        id: snap-auth
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        run: |
+          if [[ -z "$SNAPCRAFT_STORE_CREDENTIALS" ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping Snap Store upload; SNAPCRAFT_STORE_CREDENTIALS is not configured."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download the versioned Linux payload
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          if [[ ! "$TAG_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "::error::Release tag must use vMAJOR.MINOR.PATCH."
+            exit 1
+          fi
+          VERSION="${TAG_NAME#v}"
+          mkdir -p snap/payload
+          curl --fail --location --retry 3 \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/Pad2PS-Launcher-${VERSION}-x86_64.tar.gz" \
+            --output "$RUNNER_TEMP/pad2ps-linux.tar.gz"
+          tar -xzf "$RUNNER_TEMP/pad2ps-linux.tar.gz" -C snap/payload
+          sed -i "s/^version: .*/version: '${VERSION}'/" snap/snapcraft.yaml
+
+      - name: Install Snapcraft
+        run: sudo snap install snapcraft --classic
+
+      - name: Build Snap package
+        run: snapcraft pack --destructive-mode
+
+      - name: Upload to Snap Store
+        if: steps.snap-auth.outputs.enabled == 'true'
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        run: |
+          CREDENTIALS_FILE="$RUNNER_TEMP/snapcraft-credentials"
+          printf '%s' "$SNAPCRAFT_STORE_CREDENTIALS" > "$CREDENTIALS_FILE"
+          chmod 600 "$CREDENTIALS_FILE"
+          snapcraft login --with "$CREDENTIALS_FILE"
+          snapcraft upload --release=stable pad2ps-launcher_*.snap
+          rm -f "$CREDENTIALS_FILE"
+
+  publish-aur:
+    name: Publish AUR package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check AUR SSH key
+        id: aur-auth
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          if [[ -z "$AUR_SSH_PRIVATE_KEY" ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping AUR update; AUR_SSH_PRIVATE_KEY is not configured."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update and publish PKGBUILD
+        if: steps.aur-auth.outputs.enabled == 'true'
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          if [[ ! "$TAG_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "::error::Release tag must use vMAJOR.MINOR.PATCH."
+            exit 1
+          fi
+          VERSION="${TAG_NAME#v}"
+          curl --fail --location --retry 3 \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/Pad2PS-Launcher-${VERSION}-x86_64.tar.gz" \
+            --output "$RUNNER_TEMP/pad2ps-linux.tar.gz"
+          SHA256=$(sha256sum "$RUNNER_TEMP/pad2ps-linux.tar.gz" | cut -d' ' -f1)
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
+          sed -i "s/sha256sums=('[0-9a-f]\{64\}')/sha256sums=('${SHA256}')/" PKGBUILD
+          sed -i "s/^	pkgver = .*/	pkgver = ${VERSION}/; s/1\.0\.19/${VERSION}/g; s/^	sha256sums = .*/	sha256sums = ${SHA256}/" .SRCINFO
+
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > "$HOME/.ssh/aur"
+          chmod 600 "$HOME/.ssh/aur"
+          ssh-keyscan -H aur.archlinux.org >> "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          cat > "$HOME/.ssh/config" <<'EOF'
+          Host aur.archlinux.org
+            IdentityFile ~/.ssh/aur
+            IdentitiesOnly yes
+          EOF
+          chmod 600 "$HOME/.ssh/config"
+
+          git clone ssh://aur@aur.archlinux.org/pad2ps-launcher-bin.git "$RUNNER_TEMP/aur"
+          cp PKGBUILD .SRCINFO "$RUNNER_TEMP/aur/"
+          git -C "$RUNNER_TEMP/aur" config user.name "github-actions[bot]"
+          git -C "$RUNNER_TEMP/aur" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$RUNNER_TEMP/aur" add PKGBUILD .SRCINFO
+          if ! git -C "$RUNNER_TEMP/aur" diff --cached --quiet; then
+            git -C "$RUNNER_TEMP/aur" commit -m "Update to ${VERSION}"
+            git -C "$RUNNER_TEMP/aur" push origin master
+          fi

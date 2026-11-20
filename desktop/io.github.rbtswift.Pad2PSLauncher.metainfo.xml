@@ -13,9 +13,12 @@
       de capas, temas visuais customizáveis e proteção de tela.
     </p>
   </description>
-  <launchable type="desktop-id">io.github.rbtswift.Pad2PSLauncher.desktop</launchable>
+  <launchable type="desktop-id">pad2ps-launcher.desktop</launchable>
   <url type="homepage">https://github.com/RbtSwift/Pad2PS-Launcher</url>
   <url type="bugtracker">https://github.com/RbtSwift/Pad2PS-Launcher/issues</url>
+  <categories>
+    <category>Game</category>
+  </categories>
   <developer id="io.github.rbtswift">
     <name>Pad2PS (Ravi Rosa)</name>
   </developer>

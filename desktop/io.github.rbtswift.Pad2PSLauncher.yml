@@ -22,7 +22,7 @@ modules:
       - install -Dm755 pad2ps-launcher-flatpak.sh /app/bin/pad2ps-launcher
       - install -Dm644 icon-256.png /app/share/icons/hicolor/256x256/apps/io.github.rbtswift.Pad2PSLauncher.png
       - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/io.github.rbtswift.Pad2PSLauncher.png
-      - install -Dm644 io.github.rbtswift.Pad2PSLauncher.desktop /app/share/applications/io.github.rbtswift.Pad2PSLauncher.desktop
+      - install -Dm644 pad2ps-launcher.desktop /app/share/applications/pad2ps-launcher.desktop
       - install -Dm644 io.github.rbtswift.Pad2PSLauncher.metainfo.xml /app/share/metainfo/io.github.rbtswift.Pad2PSLauncher.metainfo.xml
     sources:
       - type: dir
@@ -35,6 +35,6 @@ modules:
       - type: file
         path: icon.png
       - type: file
-        path: io.github.rbtswift.Pad2PSLauncher.desktop
+        path: pad2ps-launcher.desktop
       - type: file
         path: io.github.rbtswift.Pad2PSLauncher.metainfo.xml
