@@ -1,7 +1,7 @@
 {
   "name": "pad2ps-launcher-workspace",
   "private": true,
-  "version": "1.0.13",
+  "version": "1.0.14",
   "scripts": {
     "postinstall": "npm --prefix desktop install --no-audit --no-fund",
     "dev": "npm --prefix desktop run dev",

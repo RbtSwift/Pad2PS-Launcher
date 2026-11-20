@@ -590,3 +590,162 @@ html.pad2ps-cursor-hidden * {
   .android-update-footer a, .android-update-footer button { font-size: 0.55rem; }
   .android-update-footer svg { width: 0.72rem; height: 0.72rem; }
 }
+
+/* Android console sizing: scale by the available canvas instead of falling back
+   to desktop spacing on tablets or shrinking every control on short phones. */
+@media (pointer: coarse) and (orientation: landscape) {
+  .android-app-shell {
+    --android-gutter: clamp(0.65rem, 2.1vw, 1.7rem);
+    --android-gap: clamp(0.45rem, 1.15vw, 1rem);
+    height: 100dvh;
+    min-height: 0;
+  }
+
+  .android-top-bar {
+    min-height: clamp(3rem, 9.5dvh, 5.25rem);
+    padding: clamp(0.35rem, 1.2dvh, 0.8rem) var(--android-gutter);
+    gap: var(--android-gap);
+  }
+  .android-top-bar > div { gap: clamp(0.35rem, 1vw, 0.85rem); }
+  .android-top-bar > div > a { padding: 0.45rem 0.75rem; font-size: clamp(0.66rem, 1.05vw, 0.9rem); }
+  .android-top-bar > div > button { padding: clamp(0.42rem, 1vw, 0.7rem); }
+  .android-top-bar > div > button svg { width: clamp(1rem, 2vw, 1.4rem); height: clamp(1rem, 2vw, 1.4rem); }
+  .android-top-bar > div > span:last-child { font-size: clamp(0.9rem, 2vw, 1.3rem); }
+
+  .android-page-switcher { padding: clamp(0.3rem, 1.1dvh, 0.7rem) 0; }
+  .android-page-switcher nav { gap: clamp(0.25rem, 0.8vw, 0.65rem); padding: 0.25rem 0.55rem; }
+  .android-page-switcher nav button[aria-current='page'],
+  .android-page-switcher nav button:not([aria-current='page']) {
+    width: clamp(2.45rem, 5.2vw, 3.65rem);
+    height: clamp(2.35rem, 7dvh, 3.35rem);
+  }
+  .android-page-switcher nav button > svg { width: clamp(1.15rem, 2.2vw, 1.55rem); height: clamp(1.15rem, 2.2vw, 1.55rem); }
+  .android-page-switcher nav > button { padding: 0.18rem 0.32rem; }
+  .android-page-switcher nav > button > span { font-size: clamp(0.55rem, 0.85vw, 0.72rem); }
+
+  .android-footer-legend {
+    min-height: clamp(2.55rem, 7.5dvh, 3.55rem);
+    gap: 0.65rem;
+    padding: 0.45rem var(--android-gutter);
+    font-size: clamp(0.62rem, 1vw, 0.82rem);
+  }
+  .android-footer-legend > div:last-child { gap: clamp(0.45rem, 1.2vw, 1rem); }
+  .android-footer-legend kbd { font-size: 0.62rem; padding: 0.08rem 0.32rem; }
+  .android-footer-legend svg { width: 1.05rem; height: 1.05rem; }
+
+  .android-game-carousel { justify-content: flex-start; padding-top: 0.2rem; }
+  .android-game-carousel-header {
+    min-height: clamp(3.4rem, 11dvh, 5.25rem);
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--android-gap);
+    padding: 0 var(--android-gutter) 0.25rem;
+  }
+  .android-game-carousel-header > div:first-child { width: auto; max-width: min(45%, 32rem); }
+  .android-game-carousel-header h1 { font-size: clamp(1.15rem, 2.6vw, 2rem); line-height: 1.08; }
+  .android-game-carousel-header > div:first-child > div { font-size: clamp(0.58rem, 1vw, 0.78rem); gap: 0.4rem; margin-bottom: 0.16rem; }
+  .android-game-carousel-filters { align-self: center; max-width: 58%; gap: clamp(0.25rem, 0.7vw, 0.55rem); padding: 0.12rem 0; }
+  .android-game-carousel-filters button { padding: clamp(0.38rem, 1.1dvh, 0.62rem) clamp(0.58rem, 1.3vw, 1rem); font-size: clamp(0.64rem, 1.05vw, 0.88rem); border-radius: 0.75rem; }
+  .android-game-carousel-content { flex: 1; align-items: center; }
+  .android-game-carousel-track {
+    align-items: center;
+    justify-content: flex-start;
+    gap: clamp(0.65rem, 1.45vw, 1.25rem);
+    width: max-content;
+    min-width: 100%;
+    padding: 0.45rem var(--android-gutter) clamp(0.65rem, 2dvh, 1.1rem);
+    scroll-padding-inline: var(--android-gutter);
+  }
+  .android-game-carousel-track > div { scroll-margin-inline: var(--android-gutter); }
+  .android-game-carousel-track > div { transform: none !important; translate: none !important; scale: none !important; }
+  .android-game-cover { height: clamp(9.5rem, 42dvh, 20rem) !important; }
+  .android-game-cover img { object-fit: cover; }
+  .android-game-reflection { display: none; }
+  .android-game-carousel-track .android-game-cover + div { font-size: clamp(0.68rem, 1.05vw, 0.9rem); }
+  .android-game-carousel-track .font-display { font-size: clamp(0.68rem, 1.05vw, 0.9rem); line-height: 1.25; }
+  .android-game-carousel-track > div:last-child .android-game-cover > div:first-child { width: clamp(2.25rem, 5vw, 3.5rem); height: clamp(2.25rem, 5vw, 3.5rem); }
+  .android-game-carousel-track > div:last-child .android-game-cover > div:first-child svg { width: 1.35rem; height: 1.35rem; }
+  .android-game-carousel-track > div:last-child .android-game-cover { gap: 0.7rem; padding: clamp(0.55rem, 1.4vw, 1rem); }
+  .android-game-empty-state { align-items: center; justify-content: center; flex-direction: row; gap: 0.9rem; padding: 0.75rem 1rem !important; text-align: left; }
+  .android-game-empty-state > div:first-child { width: 3rem; height: 3rem; margin: 0; }
+  .android-game-empty-state > p { max-width: 24rem; margin: 0 0.3rem 0 0; font-size: clamp(0.75rem, 1.1vw, 0.95rem); line-height: 1.4; }
+  .android-game-empty-state > button { flex: 0 0 auto; padding: 0.6rem 0.85rem; font-size: 0.78rem; }
+
+  .android-system-main { padding: 0.45rem var(--android-gutter) 0.55rem; }
+  .android-system-layout { flex-direction: row !important; gap: clamp(0.55rem, 1.2vw, 1rem); }
+  .android-system-categories {
+    width: clamp(10.5rem, 20vw, 16rem) !important;
+    flex: 0 0 clamp(10.5rem, 20vw, 16rem);
+    flex-direction: column !important;
+    gap: 0.4rem;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    padding: 0;
+  }
+  .android-system-categories button { width: 100% !important; min-height: clamp(2.55rem, 6dvh, 3.5rem); padding: 0.5rem 0.7rem !important; gap: 0.55rem !important; font-size: clamp(0.68rem, 1vw, 0.86rem) !important; line-height: 1.15; }
+  .android-system-categories button svg { width: 1.05rem; height: 1.05rem; }
+  .android-system-categories button span { white-space: nowrap !important; }
+  .android-system-panel { padding: clamp(0.65rem, 1.6vw, 1.3rem) !important; touch-action: pan-y; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+  .android-system-panel::-webkit-scrollbar { display: block; width: 4px; }
+  .android-system-panel h2 { font-size: clamp(0.95rem, 1.5vw, 1.35rem); line-height: 1.2; }
+  .android-system-panel p, .android-system-panel label,
+  .android-system-panel button, .android-system-panel select,
+  .android-system-panel input { font-size: clamp(0.68rem, 1vw, 0.86rem); }
+  .android-system-panel .space-y-5 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.65rem; }
+  .android-system-panel .gap-3 { gap: 0.55rem; }
+
+  .android-welcome-controller-modal { padding: 0.75rem !important; }
+  .android-welcome-controller-panel { width: min(92vw, 58rem); max-height: 92dvh; overflow-y: auto; padding: clamp(0.85rem, 2vw, 1.5rem) !important; }
+  .android-welcome-controller-header { margin-bottom: 0.9rem; }
+  .android-welcome-controller-header h2 { font-size: clamp(1rem, 2vw, 1.5rem); }
+  .android-welcome-controller-header p { font-size: clamp(0.7rem, 1.1vw, 0.88rem); line-height: 1.35; }
+  .android-welcome-controller-panel > div:nth-child(2) { gap: 0.65rem; margin-bottom: 0.8rem; }
+  .android-welcome-controller-panel > div:nth-child(2) > button { gap: 0.55rem; padding: 0.7rem 0.8rem; border-radius: 0.8rem; }
+  .android-welcome-controller-panel > div:nth-child(2) > button > div:first-child span { font-size: 0.84rem; }
+  .android-welcome-controller-panel > div:nth-child(2) > button p { font-size: 0.68rem; line-height: 1.3; }
+
+  .android-game-form-overlay { padding: 0.65rem !important; }
+  .android-game-form-panel { width: min(94vw, 58rem); max-height: 92dvh; overflow-y: auto; padding: 0.8rem 1rem !important; }
+  .android-game-form-panel > div:first-child { padding-bottom: 0.45rem; margin-bottom: 0.55rem; }
+  .android-game-form-panel h2 { font-size: 1.05rem; }
+  .android-game-form-panel > form { grid-template-columns: clamp(7rem, 17vw, 10rem) minmax(0, 1fr); gap: 0.8rem; }
+  .android-game-form-cover > div:first-child { width: 100%; height: auto; aspect-ratio: 2 / 3; }
+  .android-game-form-cover button { padding: 0.4rem 0.35rem; font-size: 0.65rem; }
+  .android-game-form-panel form > div:last-child { gap: 0.55rem; }
+  .android-game-form-panel form label { font-size: 0.7rem; margin-bottom: 0.12rem; }
+  .android-game-form-panel form input, .android-game-form-panel form select { padding: 0.48rem 0.6rem; font-size: 0.78rem; }
+  .android-game-form-panel form button { font-size: 0.75rem; }
+
+  .android-update-overlay { padding: 0.65rem !important; }
+  .android-update-panel { width: min(92vw, 48rem); max-height: 92dvh; display: flex; flex-direction: column; }
+  .android-update-header { padding: 0.75rem 1rem; gap: 0.6rem; }
+  .android-update-header h3 { font-size: 1rem; line-height: 1.2; }
+  .android-update-header p { font-size: 0.7rem; }
+  .android-update-body { min-height: 0; flex: 1; max-height: none; overflow-y: auto; padding: 0.7rem 1rem; }
+  .android-update-body > p { font-size: 0.78rem; }
+  .android-update-body h4 { font-size: 0.65rem; margin-bottom: 0.35rem; }
+  .android-update-notes { padding: 0.65rem 0.75rem; font-size: 0.75rem; }
+  .android-update-note-list { display: grid; gap: 0.3rem; list-style: none; padding: 0; margin: 0; }
+  .android-update-note-list li { position: relative; padding-left: 0.75rem; line-height: 1.35; }
+  .android-update-note-list li::before { content: '•'; position: absolute; left: 0; color: var(--accent); }
+  .android-update-footer { padding: 0.5rem 1rem; }
+}
+
+@media (pointer: coarse) and (orientation: landscape) and (max-width: 760px) {
+  .android-top-bar > div > a { display: none; }
+  .android-top-bar > div > div { display: none; }
+  .android-game-carousel-header > div:first-child { max-width: 40%; }
+  .android-game-carousel-header h1 { font-size: clamp(1rem, 3.7vw, 1.45rem); }
+  .android-game-carousel-filters { max-width: 60%; }
+  .android-game-carousel-track { gap: 0.55rem; }
+  .android-game-cover { height: clamp(8.75rem, 40dvh, 13rem) !important; }
+  .android-footer-legend > div:first-child > span:first-child { display: none; }
+  .android-footer-legend > div:last-child { gap: 0.35rem; }
+  .android-footer-legend > div:last-child > * { display: none; }
+  .android-footer-legend > div:last-child > button:last-child { display: inline-flex; }
+  .android-system-categories { width: 8.5rem !important; flex-basis: 8.5rem; }
+  .android-system-categories button { justify-content: flex-start !important; }
+  .android-system-categories button span { overflow: hidden; text-overflow: ellipsis; }
+  .android-game-form-panel > form { grid-template-columns: 5.5rem minmax(0, 1fr); }
+}
