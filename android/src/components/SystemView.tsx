@@ -120,9 +120,7 @@ const CATEGORIES: {
 }[] = [
   { id: 'appearance', label: 'Aparência & Temas', icon: Palette },
   { id: 'controller', label: 'Controle & Atalhos', icon: Gamepad2 },
-  { id: 'covers', label: 'Capas & API SteamGridDB', icon: ImageIcon },
-  { id: 'retro', label: 'Integração RetroAchievements (Opcional)', icon: BadgeCheck },
-  { id: 'igdb', label: 'Metadados IGDB (Opcional)', icon: Images },
+  { id: 'integrations', label: 'Integrações', icon: KeyRound },
   { id: 'library', label: 'Biblioteca & Dados', icon: Library },
   { id: 'power', label: 'Energia & Web Pad2PS', icon: Power },
 ];
@@ -300,11 +298,13 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
     const customImageInputRef = useRef<HTMLInputElement | null>(null);
     const contentRefs = useRef<(HTMLElement | null)[]>([]);
     const categoryRefs = useRef<(HTMLButtonElement | null)[]>([]);
+    const integrationCardRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
     const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
 
     const [activeCategory, setActiveCategory] =
       useState<SystemCategory>(initialCategory);
+    const [activeIntegration, setActiveIntegration] = useState<'covers' | 'steam' | 'retro' | 'igdb'>('covers');
     const [focusPane, setFocusPane] = useState<'categories' | 'content'>(
       'categories'
     );
@@ -448,12 +448,8 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           return (
             CONTROLLER_OPTIONS.length + 1 + REMAPPABLE_ACTIONS_META.length + 1
           );
-        case 'covers':
-          return 2; // Save key + Clear key
-        case 'retro':
-          return 2;
-        case 'igdb':
-          return 2;
+        case 'integrations':
+          return activeIntegration === 'steam' ? 5 : 4 + 2;
         case 'library':
           return isAndroidNative() ? 6 : 4; // Add, Export, Import, Reset (+ Android ROMs/Rescan)
         case 'power':
@@ -596,6 +592,17 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
     };
 
     const activateContentItem = (idx: number) => {
+      if (activeCategory === 'integrations') {
+        if (idx < 4) {
+          const integration = (['covers', 'steam', 'retro', 'igdb'] as const)[idx];
+          if (integration) {
+            setActiveIntegration(integration);
+            setContentFocusIndex(4);
+          }
+          return;
+        }
+        idx -= 4;
+      }
       if (activeCategory === 'appearance') {
         if (idx < THEMES.length) {
           const theme = THEMES[idx];
@@ -691,16 +698,16 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
         }
         return;
       }
-      if (activeCategory === 'covers') {
+      if (activeCategory === 'integrations' && activeIntegration === 'covers') {
         if (idx === 0) handleSaveApiKey();
         else handleClearApiKey();
         return;
       }
-      if (activeCategory === 'retro') {
+      if (activeCategory === 'integrations' && activeIntegration === 'retro') {
         if (idx === 0) void handleRetroSync(); else void handleRetroDisconnect();
         return;
       }
-      if (activeCategory === 'igdb') { if (idx === 0) void handleIgdbSave(); else void handleIgdbClear(); return; }
+      if (activeCategory === 'integrations' && activeIntegration === 'igdb') { if (idx === 0) void handleIgdbSave(); else void handleIgdbClear(); return; }
       if (activeCategory === 'library') {
         if (idx === 0) onAddGame();
         else if (idx === 1) {
@@ -809,7 +816,10 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
 
     useEffect(() => {
       if (focusPane === 'content') {
-        contentRefs.current[contentFocusIndex]?.scrollIntoView({
+        const target = activeCategory === 'integrations' && contentFocusIndex < 4
+          ? integrationCardRefs.current[contentFocusIndex]
+          : contentRefs.current[activeCategory === 'integrations' ? contentFocusIndex - 4 : contentFocusIndex];
+        target?.scrollIntoView({
           block: 'nearest',
           behavior: 'smooth',
         });
@@ -820,7 +830,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           behavior: 'smooth',
         });
       }
-    }, [focusPane, contentFocusIndex, activeCategory]);
+    }, [focusPane, contentFocusIndex, activeCategory, activeIntegration]);
 
     useImperativeHandle(ref, () => ({
       navigate: (dir) => {
@@ -990,6 +1000,35 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                   : 'var(--border-subtle)',
             }}
           >
+            {activeCategory === 'integrations' && (
+              <div className="mb-6 space-y-3">
+                <div>
+                  <h2 className="font-display text-xl lg:text-2xl font-extrabold text-[var(--text-primary)]">Integrações</h2>
+                  <p className="mt-1 text-sm text-[var(--text-secondary)]">Serviços opcionais para adicionar capas, dados e conquistas à biblioteca.</p>
+                </div>
+                <div className="theme-control flex items-start gap-3 border p-4 sm:p-5" role="note" style={{ backgroundColor: 'rgba(var(--accent-rgb), 0.10)', borderColor: 'var(--accent)' }}>
+                  <KeyRound className="mt-0.5 h-5 w-5 shrink-0" style={{ color: 'var(--accent)' }} />
+                  <div className="space-y-1 text-sm leading-relaxed text-[var(--text-secondary)]">
+                    <p className="font-bold text-[var(--text-primary)]">Privacidade: seus dados ficam no seu dispositivo</p>
+                    <p>O Pad2PS Launcher não coleta nem rastreia informações externas do usuário e não possui servidor de coleta de dados. Chaves de API, IDs e dados sincronizados ficam exclusivamente na memória interna ou no cofre local deste dispositivo. As consultas partem diretamente do aparelho para os serviços oficiais Steam, SteamGridDB, RetroAchievements e IGDB.</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {([
+                    ['covers', 'SteamGridDB', 'Busca capas verticais, banners, logos e ícones em alta resolução para os jogos da biblioteca.'],
+                    ['steam', 'Steam', 'Sincroniza biblioteca, horas jogadas, jogos recentes e conquistas. A sincronização de conta está disponível no Launcher para Desktop.'],
+                    ['retro', 'RetroAchievements', 'Exibe progresso, medalhas e conquistas desbloqueadas em jogos clássicos e emuladores.'],
+                    ['igdb', 'IGDB', 'Preenche sinopse, desenvolvedora, data de lançamento, gêneros e avaliações dos jogos.'],
+                  ] as const).map(([id, title, description]) => (
+                    <button key={id} ref={(element) => { integrationCardRefs.current[['covers', 'steam', 'retro', 'igdb'].indexOf(id)] = element; }} type="button" aria-pressed={activeIntegration === id} onClick={() => { setActiveIntegration(id); setContentFocusIndex(4); }} className="theme-control p-4 border text-left transition-colors" style={{ backgroundColor: activeIntegration === id ? 'rgba(var(--accent-rgb), 0.12)' : 'var(--bg-deep)', borderColor: activeIntegration === id ? 'var(--accent)' : 'var(--border-subtle)' }}>
+                      <span className="block font-bold text-[var(--text-primary)]">{title}</span>
+                      <span className="mt-1 block text-sm leading-relaxed text-[var(--text-secondary)]">{description}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* 1. Aparência & Temas */}
             {activeCategory === 'appearance' && (
               <div className="space-y-5">
@@ -1770,7 +1809,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
             )}
 
             {/* 3. Capas & API SteamGridDB */}
-            {activeCategory === 'covers' && (
+            {activeCategory === 'integrations' && activeIntegration === 'covers' && (
               <div className="space-y-6">
                 <div>
                   <h2 className="font-display text-xl lg:text-2xl font-extrabold text-[var(--text-primary)]">
@@ -1974,7 +2013,14 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
               </div>
             )}
 
-            {activeCategory === 'retro' && (
+            {activeCategory === 'integrations' && activeIntegration === 'steam' && (
+              <div ref={(element) => { contentRefs.current[0] = element; }} className="theme-control max-w-3xl p-4 border space-y-2 text-sm" style={{ backgroundColor: 'var(--bg-deep)', borderColor: 'var(--border-subtle)' }}>
+                <h3 className="font-bold text-[var(--text-primary)]">Steam no Desktop</h3>
+                <p className="text-[var(--text-secondary)]">A sincronização de biblioteca, horas jogadas, jogos recentes e conquistas pela Steam Web API está disponível na versão Desktop do Pad2PS-Launcher. No Android, este card serve como referência; nenhuma credencial da Steam é solicitada ou enviada.</p>
+              </div>
+            )}
+
+            {activeCategory === 'integrations' && activeIntegration === 'retro' && (
               <div className="space-y-4 max-w-3xl">
                 <div><h2 className="font-display text-xl font-extrabold text-[var(--text-primary)]">Integração RetroAchievements (Opcional)</h2><p className="text-sm text-[var(--text-secondary)] mt-1">Perfil e conquistas para jogos retrô. As consultas seguem direto para a API oficial.</p></div>
                 <div className="theme-control p-4 border space-y-2 text-sm text-[var(--text-secondary)]" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}><p>Acesse <a className="underline" href="https://retroachievements.org/settings" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>retroachievements.org/settings</a>, abra <strong>Keys</strong> e copie sua Web API Key pessoal.</p><p>A chave é criptografada e fica somente no cofre seguro deste dispositivo.</p></div>
@@ -1986,7 +2032,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
               </div>
             )}
 
-            {activeCategory === 'igdb' && (
+            {activeCategory === 'integrations' && activeIntegration === 'igdb' && (
               <div className="space-y-4 max-w-3xl">
                 <div><h2 className="font-display text-xl font-extrabold text-[var(--text-primary)]">Metadados IGDB (Opcional)</h2><p className="text-sm text-[var(--text-secondary)] mt-1">Sinopses, ano, gêneros, desenvolvedora e imagens para os jogos.</p></div>
                 <div className="theme-control p-4 border space-y-2 text-sm text-[var(--text-secondary)]" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}><p>No <a className="underline" href="https://dev.twitch.tv/console/apps" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>Console de Desenvolvedores da Twitch</a>, registre uma aplicação como <strong>Confidential</strong>, use <code>localhost</code> como redirect URL se solicitado e copie o Client ID e Client Secret.</p><p>As credenciais ficam criptografadas no Android Keystore. Chamadas IGDB usam a camada nativa, sem servidor externo do Pad2PS; token e fichas ficam em cache local.</p></div>

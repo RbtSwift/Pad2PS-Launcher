@@ -25,10 +25,7 @@ export type LibraryPlatformFilter =
 export type SystemCategory =
   | 'appearance'
   | 'controller'
-  | 'covers'
-  | 'steam'
-  | 'retro'
-  | 'igdb'
+  | 'integrations'
   | 'library'
   | 'power';
 

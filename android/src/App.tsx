@@ -844,7 +844,7 @@ export default function App() {
     setIsFormCoverFinderOpen(false);
     setActiveModal('none');
     setEditingGame(null);
-    setSystemCategory('covers');
+    setSystemCategory('integrations');
     setActivePage('system');
   }, []);
 

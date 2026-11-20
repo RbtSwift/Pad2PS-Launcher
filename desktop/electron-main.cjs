@@ -159,21 +159,54 @@ async function getIgdbGameMetadata(titleInput, { refresh = false } = {}) {
 
 function parseSteamProfileInput(input) {
   const value = String(input || '').trim();
-  const profileMatch = value.match(/steamcommunity\.com\/profiles\/(\d{17})/i);
-  if (profileMatch) return { steamId: profileMatch[1] };
-  const vanityMatch = value.match(/steamcommunity\.com\/id\/([^/?#]+)/i);
-  if (vanityMatch) return { vanity: decodeURIComponent(vanityMatch[1]) };
+  if (!value) throw new Error('Informe seu SteamID64 ou a URL do perfil Steam.');
+  const urlCandidate = /^(?:https?:\/\/)?(?:www\.)?steamcommunity\.com\//i.test(value);
+  if (urlCandidate) {
+    let profileUrl;
+    try { profileUrl = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`); }
+    catch { throw new Error('A URL do perfil Steam não é válida.'); }
+    if (!['steamcommunity.com', 'www.steamcommunity.com'].includes(profileUrl.hostname.toLowerCase())) {
+      throw new Error('Use uma URL de perfil steamcommunity.com.');
+    }
+    const segments = profileUrl.pathname.split('/').filter(Boolean);
+    const profileType = segments[0]?.toLowerCase();
+    let profileValue = segments[1] || '';
+    try { profileValue = decodeURIComponent(profileValue); } catch {}
+    profileValue = profileValue.trim();
+    if (profileType === 'profiles' && /^\d{17}$/.test(profileValue)) return { steamId: profileValue };
+    if (profileType === 'id' && /^[^/?#]{2,64}$/.test(profileValue)) return { vanity: profileValue };
+    throw new Error('O link precisa ter o formato steamcommunity.com/id/nome ou /profiles/SteamID64.');
+  }
   if (/^\d{17}$/.test(value)) return { steamId: value };
   if (/^[a-zA-Z0-9_-]{2,64}$/.test(value)) return { vanity: value };
   throw new Error('Informe um SteamID64 de 17 dígitos ou uma URL válida do perfil Steam.');
 }
 
 async function steamApi(interfaceName, methodName, params) {
-  const url = new URL(`https://api.steampowered.com/${interfaceName}/${methodName}/v1/`);
+  const methodVersions = {
+    ResolveVanityURL: 'v0001',
+    GetPlayerSummaries: 'v0002',
+    GetOwnedGames: 'v0001',
+    GetRecentlyPlayedGames: 'v0001',
+    GetPlayerAchievements: 'v0001',
+  };
+  const version = methodVersions[methodName];
+  if (!version) throw new Error(`Método Steam não reconhecido: ${methodName}.`);
+  const url = new URL(`https://api.steampowered.com/${interfaceName}/${methodName}/${version}/`);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(response.status === 403 ? 'A Steam recusou a chave da Web API.' : `A Steam respondeu com erro HTTP ${response.status}.`);
-  return response.json();
+  let response;
+  try { response = await fetch(url, { headers: { Accept: 'application/json' } }); }
+  catch (error) { throw new Error(`Falha de rede ao consultar a Steam: ${error.message || 'verifique sua conexão.'}`); }
+  const body = await response.text();
+  let data;
+  try { data = body ? JSON.parse(body) : {}; } catch { data = null; }
+  if (!response.ok) {
+    const apiMessage = data?.error || data?.message || body?.replace(/\s+/g, ' ').slice(0, 240);
+    if (response.status === 403) throw new Error(`Steam Web API retornou HTTP 403 (Forbidden). Confira se a chave é válida${apiMessage ? `: ${apiMessage}` : '.'}`);
+    throw new Error(`Steam Web API retornou HTTP ${response.status} (${response.statusText || 'erro'}).${apiMessage ? ` Detalhe: ${apiMessage}` : ''}`);
+  }
+  if (!data || typeof data !== 'object') throw new Error('A Steam retornou uma resposta inválida. Verifique a conexão e tente novamente.');
+  return data;
 }
 
 async function resolveSteamId(profileInput, apiKey) {
@@ -181,7 +214,11 @@ async function resolveSteamId(profileInput, apiKey) {
   if (parsed.steamId) return parsed.steamId;
   const result = await steamApi('ISteamUser', 'ResolveVanityURL', { key: apiKey, vanityurl: parsed.vanity });
   const resolved = result?.response?.steamid;
-  if (!result?.response?.success || !/^\d{17}$/.test(String(resolved || ''))) throw new Error('Não foi possível localizar esse perfil Steam. Confira o link ou apelido.');
+  if (!result?.response?.success || !/^\d{17}$/.test(String(resolved || ''))) {
+    const status = result?.response?.success;
+    if (status === 42) throw new Error('A Steam não encontrou esse Nome de domínio/URL personalizada. Confira o trecho após /id/.');
+    throw new Error(`A Steam não conseguiu resolver o perfil informado${status ? ` (código ${status})` : ''}. Confira o link e se a Steam Web API Key está válida.`);
+  }
   return String(resolved);
 }
 
@@ -195,7 +232,7 @@ async function syncSteamAccount(apiKeyInput, profileInput) {
     steamApi('IPlayerService', 'GetRecentlyPlayedGames', { key: apiKey, steamid: steamId, count: 100 }),
   ]);
   const profile = summaryResult?.response?.players?.[0];
-  if (!profile) throw new Error('A Steam não encontrou o perfil informado.');
+  if (!profile) throw new Error(`A Steam não retornou dados para o SteamID ${steamId}. Confira se o ID está correto e se a chave da Web API é válida. Se o perfil estiver privado, torne os detalhes do perfil públicos para sincronizar.`);
   const owned = ownedResult?.response;
   const privateProfile = !owned || !Array.isArray(owned.games);
   const games = privateProfile ? [] : owned.games.map((game) => ({
