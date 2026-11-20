@@ -66,6 +66,7 @@ import {
 } from './utils/gamepadMapping';
 import { soundEngine } from './utils/sound';
 import { findAutomaticSteamGridDbCover } from './utils/coverSearch';
+import { findLibretroThumbnail } from './utils/libretroThumbnails';
 import { GameScanner, isAndroidNative, listAndroidLaunchableApps, type AndroidLaunchableApp } from './utils/androidBridge';
 
 const GAMES_STORAGE_KEY = 'pad2ps_launcher_games_v1';
@@ -423,7 +424,9 @@ export default function App() {
         while (!cancelled) {
           const game = pending[cursor++];
           if (!game) return;
-          const cover = await findAutomaticSteamGridDbCover(game.title);
+          const cover = game.platform === 'Emulador'
+            ? await findLibretroThumbnail(game.consoleSystem || game.platformLabel, game.title)
+            : await findAutomaticSteamGridDbCover(game.title);
           if (cover) covers.set(game.id, cover);
         }
       };
@@ -1630,6 +1633,8 @@ export default function App() {
             }}
             onDelete={() => handleDeleteGame(selectedGame)}
             onSaveRetroGameId={(retroGameId) => setGames((previous) => previous.map((game) => game.id === selectedGame.id ? { ...game, retroGameId } : game))}
+            onSaveSaveFolder={(saveFolder) => setGames((previous) => previous.map((game) => game.id === selectedGame.id ? { ...game, saveFolder } : game))}
+            onSyncSaves={() => fetch('/api/save-sync/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gameId: selectedGame.id, title: selectedGame.title, saveFolder: selectedGame.saveFolder }) }).then((response) => response.json()).then((result) => { if (result.ok) setGames((previous) => previous.map((game) => game.id === selectedGame.id ? { ...game, saveSyncLastAt: Date.now() } : game)); }).catch(() => {})}
             onClose={() => {
               soundEngine.playCancel();
               setActiveModal('none');

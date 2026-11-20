@@ -5,6 +5,7 @@ const path = require('path');
 const os = require('os');
 const { spawn, execFile } = require('child_process');
 const DiscordRPC = require('discord-rpc');
+const { zipSync, unzipSync } = require('fflate');
 require('dotenv').config({ path: path.join(__dirname, '.env.local') });
 let packagedServiceKeys = {};
 try { packagedServiceKeys = require('./steamgriddb-secret.cjs'); } catch {}
@@ -28,7 +29,9 @@ const STEAM_CREDENTIALS_FILE = path.join(DATA_DIR, 'steam-credentials.enc');
 const RETRO_CREDENTIALS_FILE = path.join(DATA_DIR, 'retro-credentials.enc');
 const IGDB_CREDENTIALS_FILE = path.join(DATA_DIR, 'igdb-credentials.enc');
 const IGDB_METADATA_CACHE_FILE = path.join(DATA_DIR, 'igdb-metadata-cache.json');
+const GAME_TECH_CACHE_FILE = path.join(DATA_DIR, 'game-tech-cache.json');
 const DISCORD_PRESENCE_FILE = path.join(DATA_DIR, 'discord-presence.json');
+const SAVE_SYNC_CREDENTIALS_FILE = path.join(DATA_DIR, 'save-sync.enc');
 const AUTOSTART_DESKTOP = path.join(USER_HOME, '.config', 'autostart', 'pad2ps-launcher.desktop');
 const DIST_DIR = path.join(__dirname, 'dist');
 
@@ -134,6 +137,104 @@ async function getIgdbToken(credentials) {
   return credentials.token;
 }
 function readIgdbMetadataCache() { try { return JSON.parse(fs.readFileSync(IGDB_METADATA_CACHE_FILE, 'utf8')); } catch { return {}; } }
+function readGameTechCache() { try { return JSON.parse(fs.readFileSync(GAME_TECH_CACHE_FILE, 'utf8')); } catch { return {}; } }
+function writeGameTechCache(cache) { try { fs.writeFileSync(GAME_TECH_CACHE_FILE, JSON.stringify(cache), { mode: 0o600 }); } catch {} }
+function readSaveSyncConfig() {
+  try { if (!safeStorage.isEncryptionAvailable()) return null; return JSON.parse(safeStorage.decryptString(fs.readFileSync(SAVE_SYNC_CREDENTIALS_FILE))); } catch { return null; }
+}
+function writeSaveSyncConfig(config) {
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('O cofre seguro do sistema não está disponível.');
+  fs.writeFileSync(SAVE_SYNC_CREDENTIALS_FILE, safeStorage.encryptString(JSON.stringify(config)), { mode: 0o600 });
+  try { fs.chmodSync(SAVE_SYNC_CREDENTIALS_FILE, 0o600); } catch {}
+}
+function collectSaveFiles(root, relative = '') {
+  const result = {};
+  for (const item of fs.readdirSync(path.join(root, relative), { withFileTypes: true })) {
+    const rel = path.join(relative, item.name).replace(/\\/g, '/');
+    if (item.isDirectory()) Object.assign(result, collectSaveFiles(root, rel));
+    else if (item.isFile()) result[rel] = new Uint8Array(fs.readFileSync(path.join(root, rel)));
+  }
+  return result;
+}
+async function syncSaveFolder({ gameId, title, saveFolder, direction = 'push' }) {
+  const config = readSaveSyncConfig();
+  if (!config) throw new Error('Configure o Save Sync Pessoal nas Integrações.');
+  const source = String(saveFolder || '').trim();
+  if (!source || !fs.existsSync(source) || !fs.statSync(source).isDirectory()) throw new Error('Vincule uma pasta local de saves válida no modal do jogo.');
+  const safeId = String(gameId || title || 'game').replace(/[^a-z0-9_-]/gi, '_');
+  const archiveName = `${safeId}.zip`;
+  const cacheDir = path.join(DATA_DIR, 'save-sync'); fs.mkdirSync(cacheDir, { recursive: true });
+  const archivePath = path.join(cacheDir, archiveName);
+  const webdavUrl = String(config.webdavUrl || '').trim().replace(/\/+$/, '');
+  const auth = config.mode === 'webdav' ? `Basic ${Buffer.from(`${config.username || ''}:${config.password || ''}`).toString('base64')}` : '';
+  if (config.mode === 'local' && direction === 'pull') {
+    const remoteArchive = path.join(String(config.localFolder || ''), 'Pad2PS-Saves', archiveName);
+    if (fs.existsSync(remoteArchive)) {
+      const sourceFiles = collectSaveFiles(source);
+      const sourceNewest = fs.readdirSync(source, { withFileTypes: true }).reduce((latest, entry) => Math.max(latest, fs.statSync(path.join(source, entry.name)).mtimeMs), 0);
+      if (fs.statSync(remoteArchive).mtimeMs > sourceNewest) {
+        fs.writeFileSync(`${archivePath}.bak`, zipSync(sourceFiles, { level: 6 }));
+        for (const [rel, bytes] of Object.entries(unzipSync(new Uint8Array(fs.readFileSync(remoteArchive))))) { const target = path.resolve(source, rel); if (!target.startsWith(path.resolve(source) + path.sep)) continue; fs.mkdirSync(path.dirname(target), { recursive: true }); fs.writeFileSync(target, bytes); }
+      }
+    }
+    return { ok: true, direction: 'pull' };
+  }
+  if (config.mode === 'webdav' && direction === 'pull') {
+    try {
+      const response = await fetch(`${webdavUrl}/${encodeURIComponent(archiveName)}`, { headers: auth ? { Authorization: auth } : {} });
+      if (response.ok) {
+        const remote = Buffer.from(await response.arrayBuffer());
+        fs.writeFileSync(`${archivePath}.bak`, zipSync(collectSaveFiles(source), { level: 6 }));
+        for (const [rel, bytes] of Object.entries(unzipSync(new Uint8Array(remote)))) { const target = path.resolve(source, rel); if (!target.startsWith(path.resolve(source) + path.sep)) continue; fs.mkdirSync(path.dirname(target), { recursive: true }); fs.writeFileSync(target, bytes); }
+        return { ok: true, direction: 'pull' };
+      }
+    } catch {}
+    return { ok: true, direction: 'pull', unchanged: true };
+  }
+  const archive = zipSync(collectSaveFiles(source), { level: 6 });
+  if (config.mode === 'local') {
+    const root = path.resolve(String(config.localFolder || ''));
+    if (!root || root === path.parse(root).root || !fs.existsSync(root)) throw new Error('Escolha uma pasta base local existente para o Save Sync.');
+    const target = path.join(root, 'Pad2PS-Saves', archiveName); fs.mkdirSync(path.dirname(target), { recursive: true }); fs.writeFileSync(target, archive); fs.writeFileSync(archivePath, archive);
+  } else if (config.mode === 'webdav' && webdavUrl) {
+    const response = await fetch(`${webdavUrl}/${encodeURIComponent(archiveName)}`, { method: 'PUT', headers: { ...(auth ? { Authorization: auth } : {}), 'Content-Type': 'application/zip' }, body: archive });
+    if (!response.ok) throw new Error(`O WebDAV respondeu HTTP ${response.status} ao enviar o save.`);
+  } else throw new Error('Selecione Pasta Local ou WebDAV.');
+  return { ok: true, direction: 'push', savedAt: Date.now() };
+}
+async function getProtonSummary(appId) {
+  if (process.platform !== 'linux' || !/^\d+$/.test(String(appId))) return null;
+  const cache = readGameTechCache(), key = `proton:${appId}`;
+  if (cache[key] && cache[key].expiresAt > Date.now()) return cache[key].data;
+  try {
+    const response = await fetch(`https://www.protondb.com/api/v1/reports/summaries/${appId}.json`);
+    if (!response.ok) return null;
+    const result = await response.json();
+    const tier = String(result.tier || '').toLowerCase();
+    if (!['platinum', 'gold', 'silver', 'bronze', 'borked'].includes(tier)) return null;
+    const data = { tier: tier[0].toUpperCase() + tier.slice(1) };
+    cache[key] = { data, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 }; writeGameTechCache(cache);
+    return data;
+  } catch { return null; }
+}
+async function getPcGamingWikiSummary(appId, title) {
+  const cleanTitle = String(title || '').trim();
+  if (!/^\d+$/.test(String(appId || '')) && !cleanTitle) return null;
+  const cache = readGameTechCache(), key = `pcgw:${appId || cleanTitle.toLocaleLowerCase()}`;
+  if (cache[key] && cache[key].expiresAt > Date.now()) return cache[key].data;
+  try {
+    const where = /^\d+$/.test(String(appId || '')) ? `Infobox_game.Steam_AppID HOLDS "${appId}"` : `Infobox_game._pageName = "${cleanTitle.replace(/["\\]/g, ' ')}"`;
+    const params = new URLSearchParams({ action: 'cargoquery', format: 'json', tables: 'Infobox_game,Input,Video', fields: 'Infobox_game._pageName=Page,Infobox_game.Steam_AppID,Input.Xbox_360,Input.Xbox_One,Input.PlayStation_4,Input.PlayStation_5,Video.Ultrawidescreen', join_on: 'Infobox_game._pageID=Input._pageID,Infobox_game._pageID=Video._pageID', where, limit: '1' });
+    const response = await fetch(`https://www.pcgamingwiki.com/w/api.php?${params}`, { headers: { 'User-Agent': 'Pad2PSLauncher/1.0 (game compatibility lookup)' } });
+    if (!response.ok) return null;
+    const result = await response.json(), row = result?.cargoquery?.[0]?.title;
+    if (!row) return null;
+    const yes = (...values) => values.some((value) => ['yes', 'y', 'true', '1', 'supported'].includes(String(value || '').trim().toLowerCase()));
+    const data = { xboxController: yes(row['Xbox 360'], row.Xbox_360, row.Xbox_One), playstationController: yes(row['PlayStation 4'], row.PlayStation_4, row.PlayStation_5), ultrawide: yes(row.Ultrawidescreen) };
+    cache[key] = { data, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 }; writeGameTechCache(cache);
+    return data;
+  } catch { return null; }
+}
 async function getIgdbGameMetadata(titleInput, { refresh = false } = {}) {
   const title = cleanIgdbTitle(titleInput);
   if (!title) throw new Error('Título do jogo vazio.');
@@ -143,10 +244,17 @@ async function getIgdbGameMetadata(titleInput, { refresh = false } = {}) {
   const credentials = readIgdbCredentials();
   if (!credentials?.clientId || !credentials?.clientSecret) throw new Error('Configure Client ID e Client Secret da IGDB nas Configurações.');
   const token = await getIgdbToken(credentials);
-  const query = `fields name,summary,first_release_date,genres.name,involved_companies.company.name,involved_companies.developer,screenshots.image_id,rating; search "${title.replace(/["\\]/g, ' ')}"; limit 3;`;
-  const response = await fetch('https://api.igdb.com/v4/games', { method: 'POST', headers: { 'Client-ID': credentials.clientId, Authorization: `Bearer ${token}`, 'Content-Type': 'text/plain' }, body: query });
-  if (!response.ok) throw new Error(`IGDB respondeu HTTP ${response.status}.`);
-  const rows = await response.json();
+  const safeTitle = title.replace(/["\\]/g, ' ');
+  const fields = 'fields name,summary,first_release_date,genres.name,involved_companies.company.name,involved_companies.developer,screenshots.image_id,rating,total_rating_count,follows;';
+  const request = async (query) => {
+    const response = await fetch('https://api.igdb.com/v4/games', { method: 'POST', headers: { 'Client-ID': credentials.clientId, Authorization: `Bearer ${token}`, 'Content-Type': 'text/plain' }, body: query });
+    if (!response.ok) throw new Error(`IGDB respondeu HTTP ${response.status}.`);
+    return response.json();
+  };
+  const exactRows = await request(`${fields} where name = "${safeTitle}"; sort total_rating_count desc; limit 5;`);
+  const rows = exactRows.length ? exactRows : await request(`${fields} search "${safeTitle}"; sort total_rating_count desc; limit 5;`);
+  const normalized = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  rows.sort((a, b) => Number(normalized(b.name) === normalized(title)) - Number(normalized(a.name) === normalized(title)) || Number(b.total_rating_count || 0) - Number(a.total_rating_count || 0) || Number(b.follows || 0) - Number(a.follows || 0));
   const game = Array.isArray(rows) ? rows[0] : null;
   if (!game) throw new Error('Nenhum resultado encontrado na IGDB.');
   const data = {
@@ -924,7 +1032,7 @@ function setAutostartEnabled(enabled) {
 // ============================================================================
 // EXECUÇÃO DE JOGOS
 // ============================================================================
-function runGameProcess(gameId, command) {
+function runGameProcess(gameId, command, gameTitle = '', saveFolder = '') {
   const startTime = Date.now();
 
   try {
@@ -959,6 +1067,7 @@ function runGameProcess(gameId, command) {
     if (proc) {
       proc.on('close', () => {
         setDiscordGame('');
+        if (saveFolder) void syncSaveFolder({ gameId, title: gameTitle, saveFolder, direction: 'push' }).catch(() => {});
         const elapsedHours = Math.round(((Date.now() - startTime) / 3600000) * 100) / 100;
         if (elapsedHours > 0.01 && fs.existsSync(LIBRARY_CACHE)) {
           try {
@@ -1079,6 +1188,14 @@ function startHttpServer() {
         void getIgdbGameMetadata(title, { refresh }).then((data) => sendJson({ available: true, data })).catch((error) => sendJson({ available: false, reason: error.message || 'Metadados IGDB indisponíveis.' }));
         return;
       }
+      if (req.method === 'GET' && pathname === '/api/game-tech/protondb') {
+        void getProtonSummary(url.searchParams.get('appId')).then((data) => sendJson({ available: Boolean(data), data })).catch(() => sendJson({ available: false, data: null }));
+        return;
+      }
+      if (req.method === 'GET' && pathname === '/api/game-tech/pcgw') {
+        void getPcGamingWikiSummary(url.searchParams.get('appId'), url.searchParams.get('title')).then((data) => sendJson({ available: Boolean(data), data })).catch(() => sendJson({ available: false, data: null }));
+        return;
+      }
       if (req.method === 'POST' && pathname === '/api/retro/sync') {
         void readJsonBody().then((body) => syncRetroAccount(body.username, body.key)).then((data) => sendJson(data)).catch((error) => sendJson({ error: error.message || 'Não foi possível conectar ao RetroAchievements.' }, 400));
         return;
@@ -1094,6 +1211,11 @@ function startHttpServer() {
         return;
       }
       if (req.method === 'GET' && pathname === '/api/discord/config') return sendJson({ enabled: discordEnabled(), configured: DISCORD_CLIENT_ID !== 'YOUR_DISCORD_CLIENT_ID' });
+      if (req.method === 'GET' && pathname === '/api/save-sync/config') { const value = readSaveSyncConfig() || {}; return sendJson({ mode: value.mode || 'local', localFolder: value.localFolder || '', webdavUrl: value.webdavUrl || '', username: value.username || '', configured: Boolean(value.mode) }); }
+      if (req.method === 'GET' && pathname === '/api/save-sync/pick-folder') { void dialog.showOpenDialog({ title: 'Pasta base para os saves', properties: ['openDirectory', 'createDirectory'] }).then((result) => sendJson({ path: result.canceled ? '' : result.filePaths[0] || '' })).catch(() => sendJson({ path: '' })); return; }
+      if (req.method === 'POST' && pathname === '/api/save-sync/config') { void readJsonBody().then((body) => { writeSaveSyncConfig({ mode: body.mode === 'webdav' ? 'webdav' : 'local', localFolder: String(body.localFolder || '').trim(), webdavUrl: String(body.webdavUrl || '').trim(), username: String(body.username || '').trim(), password: String(body.password || '').trim() }); sendJson({ ok: true }); }).catch((error) => sendJson({ error: error.message || 'Não foi possível salvar a configuração segura.' }, 400)); return; }
+      if (req.method === 'POST' && pathname === '/api/save-sync/test') { void readJsonBody().then(async (body) => { const urlValue = String(body.webdavUrl || '').trim().replace(/\/+$/, ''); const auth = `Basic ${Buffer.from(`${body.username || ''}:${body.password || ''}`).toString('base64')}`; const response = await fetch(urlValue, { method: 'PROPFIND', headers: { Authorization: auth, Depth: '0' } }); if (![200, 207, 405].includes(response.status)) throw new Error(`WebDAV respondeu HTTP ${response.status}.`); return sendJson({ ok: true }); }).catch((error) => sendJson({ error: error.message || 'Falha ao testar o WebDAV.' }, 400)); return; }
+      if (req.method === 'POST' && pathname === '/api/save-sync/sync') { void readJsonBody().then(async (body) => { await syncSaveFolder({ ...body, direction: 'pull' }); return syncSaveFolder({ ...body, direction: 'push' }); }).then((result) => sendJson(result)).catch((error) => sendJson({ error: error.message || 'Não foi possível sincronizar os saves.' }, 400)); return; }
       if (req.method === 'POST' && pathname === '/api/discord/config') {
         void readJsonBody().then((body) => { setDiscordEnabled(body.enabled !== false); return sendJson({ enabled: discordEnabled(), configured: DISCORD_CLIENT_ID !== 'YOUR_DISCORD_CLIENT_ID' }); }).catch(() => sendJson({ error: 'Não foi possível salvar a preferência.' }, 400));
         return;
@@ -1167,13 +1289,14 @@ function startHttpServer() {
       if (req.method === 'POST' && pathname === '/api/launch') {
         let raw = '';
         req.on('data', (c) => (raw += c));
-        req.on('end', () => {
+        req.on('end', async () => {
           try {
             const body = JSON.parse(raw || '{}');
-            const { id, command, title, controller } = body;
+            const { id, command, title, controller, saveFolder } = body;
             if (command) {
+              if (saveFolder) { try { await syncSaveFolder({ gameId: id, title, saveFolder, direction: 'pull' }); } catch {} }
               setDiscordGame(title || 'Jogo', controller || '');
-              runGameProcess(id, command);
+              runGameProcess(id, command, title, saveFolder);
               return sendJson({ ok: true });
             }
             return sendJson({ ok: false, error: 'Comando vazio' }, 400);

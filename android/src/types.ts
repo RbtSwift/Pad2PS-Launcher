@@ -117,6 +117,8 @@ export interface Game {
   isCustomCover?: boolean;
   isAutomaticCoverFallback?: boolean;
   retroGameId?: number;
+  saveFolder?: string;
+  saveSyncLastAt?: number;
   command: string;
   hoursPlayed: number;
   favorite: boolean;

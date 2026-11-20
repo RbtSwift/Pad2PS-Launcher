@@ -124,6 +124,8 @@ export interface Game {
   steamHeroUrl?: string;
   steamLogoUrl?: string;
   retroGameId?: number;
+  saveFolder?: string;
+  saveSyncLastAt?: number;
   command: string;
   hoursPlayed: number;
   favorite: boolean;

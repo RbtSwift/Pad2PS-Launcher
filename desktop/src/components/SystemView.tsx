@@ -333,7 +333,12 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
     const [exportingLogo, setExportingLogo] = useState(false);
     const [autostartEnabled, setAutostartEnabled] = useState<boolean>(false);
     const [discordPresenceEnabled, setDiscordPresenceEnabled] = useState(true);
-    const [discordPresenceConfigured, setDiscordPresenceConfigured] = useState(false);
+    const [saveSyncMode, setSaveSyncMode] = useState<'local' | 'webdav'>('local');
+    const [saveSyncFolder, setSaveSyncFolder] = useState('');
+    const [saveWebdavUrl, setSaveWebdavUrl] = useState('');
+    const [saveWebdavUser, setSaveWebdavUser] = useState('');
+    const [saveWebdavPassword, setSaveWebdavPassword] = useState('');
+    const [saveSyncFeedback, setSaveSyncFeedback] = useState('');
     const [retroUsername, setRetroUsername] = useState('');
     const [retroKey, setRetroKey] = useState('');
     const [retroShowKey, setRetroShowKey] = useState(false);
@@ -380,9 +385,11 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
 
     useEffect(() => {
       fetch('/api/discord/config').then((r) => r.ok ? r.json() : null).then((data) => {
-        if (data) { setDiscordPresenceEnabled(data.enabled !== false); setDiscordPresenceConfigured(Boolean(data.configured)); }
+        if (data) setDiscordPresenceEnabled(data.enabled !== false);
       }).catch(() => {});
     }, []);
+
+    useEffect(() => { fetch('/api/save-sync/config').then((r) => r.ok ? r.json() : null).then((data) => { if (data) { setSaveSyncMode(data.mode === 'webdav' ? 'webdav' : 'local'); setSaveSyncFolder(data.localFolder || ''); setSaveWebdavUrl(data.webdavUrl || ''); setSaveWebdavUser(data.username || ''); } }).catch(() => {}); }, []);
 
     useEffect(() => {
       fetch('/api/autostart')
@@ -1032,6 +1039,16 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                     </button>
                   ))}
                 </div>
+                <section className="theme-control flex items-center justify-between gap-4 border p-4" style={{ backgroundColor: 'var(--bg-deep)', borderColor: 'var(--border-subtle)' }}>
+                  <div><h3 className="font-bold text-[var(--text-primary)]">Discord Rich Presence</h3><p className="mt-1 text-sm text-[var(--text-secondary)]">Mostra no seu perfil do Discord quando você está navegando ou jogando. A conexão é local, só no Desktop, e falha silenciosamente se o Discord estiver fechado.</p></div>
+                  <label className="flex shrink-0 items-center gap-2 text-sm text-[var(--text-secondary)]"><span>{discordPresenceEnabled ? 'Ativado' : 'Desativado'}</span><input aria-label="Ativar Discord Rich Presence" type="checkbox" checked={discordPresenceEnabled} onChange={(event) => { const enabled = event.target.checked; setDiscordPresenceEnabled(enabled); fetch('/api/discord/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) }).catch(() => {}); }} className="accent-[var(--accent)]" /></label>
+                </section>
+                <section className="theme-control border p-4 space-y-3" style={{ backgroundColor: 'var(--bg-deep)', borderColor: 'var(--border-subtle)' }}>
+                  <div><h3 className="font-bold text-[var(--text-primary)]">Save Sync Pessoal</h3><p className="mt-1 text-sm text-[var(--text-secondary)]">Seus saves vão diretamente para a pasta privada escolhida ou para seu WebDAV. As credenciais WebDAV ficam criptografadas neste computador; não há servidor Pad2PS.</p></div>
+                  <div className="flex flex-wrap gap-2"><button type="button" onClick={() => setSaveSyncMode('local')} className="theme-control border px-3 py-2 text-sm" style={{borderColor:saveSyncMode==='local'?'var(--accent)':'var(--border-subtle)'}}>Pasta Local / Syncthing / Nuvem Montada</button><button type="button" onClick={() => setSaveSyncMode('webdav')} className="theme-control border px-3 py-2 text-sm" style={{borderColor:saveSyncMode==='webdav'?'var(--accent)':'var(--border-subtle)'}}>WebDAV Pessoal</button></div>
+                  {saveSyncMode === 'local' ? <div className="flex gap-2"><input value={saveSyncFolder} onChange={(event)=>setSaveSyncFolder(event.target.value)} placeholder="Pasta base local" className="theme-control min-w-0 flex-1 px-3 py-2 text-sm"/><button type="button" onClick={()=>fetch('/api/save-sync/pick-folder').then((r)=>r.json()).then((data)=>{if(data.path)setSaveSyncFolder(data.path);}).catch(()=>{})} className="theme-control px-3 py-2 text-sm">Escolher pasta</button></div> : <div className="grid gap-2 sm:grid-cols-2"><input value={saveWebdavUrl} onChange={(event)=>setSaveWebdavUrl(event.target.value)} placeholder="URL WebDAV (https://...)" className="theme-control px-3 py-2 text-sm sm:col-span-2"/><input value={saveWebdavUser} onChange={(event)=>setSaveWebdavUser(event.target.value)} placeholder="Usuário" className="theme-control px-3 py-2 text-sm"/><input type="password" value={saveWebdavPassword} onChange={(event)=>setSaveWebdavPassword(event.target.value)} placeholder="Senha ou token" className="theme-control px-3 py-2 text-sm"/></div>}
+                  <div className="flex flex-wrap items-center gap-2"><button type="button" onClick={async()=>{setSaveSyncFeedback('Salvando no cofre local…');try{const response=await fetch('/api/save-sync/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:saveSyncMode,localFolder:saveSyncFolder,webdavUrl:saveWebdavUrl,username:saveWebdavUser,password:saveWebdavPassword})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Falha ao salvar.');setSaveWebdavPassword('');setSaveSyncFeedback('Configuração protegida e salva neste computador.');}catch(error){setSaveSyncFeedback(error instanceof Error?error.message:'Falha ao salvar.');}}} className="theme-control px-4 py-2 text-sm font-bold text-white" style={{backgroundColor:'var(--accent)'}}>Salvar configuração</button>{saveSyncMode==='webdav'&&<button type="button" onClick={async()=>{try{const response=await fetch('/api/save-sync/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({webdavUrl:saveWebdavUrl,username:saveWebdavUser,password:saveWebdavPassword})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Falha de conexão.');setSaveSyncFeedback('Conexão WebDAV confirmada.');}catch(error){setSaveSyncFeedback(error instanceof Error?error.message:'Falha de conexão.');}}} className="theme-control px-4 py-2 text-sm">Testar Conexão</button>}<span role="status" className="text-sm text-[var(--text-secondary)]">{saveSyncFeedback}</span></div>
+                </section>
               </div>
             )}
 
@@ -2022,15 +2039,6 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                     energia.
                   </p>
                 </div>
-
-                <label className="theme-control p-4 border flex items-center justify-between gap-4 cursor-pointer" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}>
-                  <span><strong className="block text-[var(--text-primary)]">Discord Rich Presence</strong><span className="text-sm text-[var(--text-secondary)]">{discordPresenceConfigured ? 'Mostra se você está navegando ou jogando.' : 'Defina DISCORD_CLIENT_ID para ativar a comunicação com o Discord local.'}</span></span>
-                  <input type="checkbox" checked={discordPresenceEnabled} onChange={(event) => {
-                    const enabled = event.target.checked; setDiscordPresenceEnabled(enabled);
-                    fetch('/api/discord/config', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled}) })
-                      .then((r) => r.ok ? r.json() : null).then((data) => { if (data) setDiscordPresenceConfigured(Boolean(data.configured)); }).catch(() => {});
-                  }} className="accent-[var(--accent)]" />
-                </label>
 
                 {/* Ações Rápidas: Site Oficial & Ativar Descanso */}
                 <div className="flex flex-col gap-3">
