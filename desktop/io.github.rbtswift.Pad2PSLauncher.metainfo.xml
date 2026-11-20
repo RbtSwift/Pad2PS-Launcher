@@ -21,6 +21,12 @@
   </developer>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="1.0.17" date="2026-11-20">
+      <description>
+        <p>Implementa Save Sync Pessoal no Android, com seletor SAF, cofre Keystore, backups ZIP e sincronização direta por pasta local ou WebDAV.</p>
+        <p>Adds Android Personal Save Sync with SAF folder selection, Keystore protection, ZIP backups, and direct local-folder or WebDAV sync.</p>
+      </description>
+    </release>
     <release version="1.0.16" date="2026-11-20">
       <description>
         <p>Remove jogos fictícios e utilitários da biblioteca, adiciona itens ocultos restauráveis, melhora detalhes e integrações e ajusta o carrossel Android.</p>

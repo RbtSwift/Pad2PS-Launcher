@@ -161,7 +161,7 @@ async function syncSaveFolder({ gameId, title, saveFolder, direction = 'push' })
   if (!config) throw new Error('Configure o Save Sync Pessoal nas Integrações.');
   const source = String(saveFolder || '').trim();
   if (!source || !fs.existsSync(source) || !fs.statSync(source).isDirectory()) throw new Error('Vincule uma pasta local de saves válida no modal do jogo.');
-  const safeId = String(gameId || title || 'game').replace(/[^a-z0-9_-]/gi, '_');
+  const safeId = String(title || gameId || 'game').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'game';
   const archiveName = `${safeId}.zip`;
   const cacheDir = path.join(DATA_DIR, 'save-sync'); fs.mkdirSync(cacheDir, { recursive: true });
   const archivePath = path.join(cacheDir, archiveName);

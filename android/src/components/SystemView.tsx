@@ -6,6 +6,7 @@ import React, {
   useState,
 } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { SaveSyncNative } from '../utils/androidBridge';
 import {
   AlertTriangle,
   BadgeCheck,
@@ -341,6 +342,12 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
     const [retroBusy, setRetroBusy] = useState(false);
     const [retroFeedback, setRetroFeedback] = useState('');
     const [retroProfile, setRetroProfile] = useState<{username:string;avatar:string;points:number;softcorePoints:number;hardcorePoints:number;rank:number}|null>(null);
+    const [saveSyncMode, setSaveSyncMode] = useState<'local' | 'webdav'>('local');
+    const [saveSyncFolder, setSaveSyncFolder] = useState('');
+    const [saveWebdavUrl, setSaveWebdavUrl] = useState('');
+    const [saveWebdavUser, setSaveWebdavUser] = useState('');
+    const [saveWebdavPassword, setSaveWebdavPassword] = useState('');
+    const [saveSyncFeedback, setSaveSyncFeedback] = useState('');
 
     useEffect(() => {
       fetch('/api/steam/config').then((r) => r.ok ? r.json() : null).then((data) => {
@@ -349,6 +356,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
       fetch('/api/retro/config').then((r) => r.ok ? r.json() : null).then((data) => {
         if (data?.configured) { setRetroUsername(data.username || ''); setRetroProfile(data.profile || null); }
       }).catch(() => {});
+      fetch('/api/save-sync/config').then((r) => r.ok ? r.json() : null).then((data) => { if (data) { setSaveSyncMode(data.mode === 'webdav' ? 'webdav' : 'local'); setSaveSyncFolder(data.baseFolderUri || ''); setSaveWebdavUrl(data.webdavUrl || ''); setSaveWebdavUser(data.username || ''); } }).catch(() => {});
     }, []);
     const handleSteamSync = async () => { setSteamBusy(true); setSteamFeedback('Sincronização Steam disponível no Desktop.'); setSteamBusy(false); };
     const handleSteamDisconnect = async () => { setSteamConnected(false); setSteamProfile(null); setSteamApiKey(''); setSteamProfileInput(''); setSteamFeedback(''); };
@@ -1010,6 +1018,12 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                     </button>
                   ))}
                 </div>
+                <section className="theme-control border p-4 space-y-3" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}>
+                  <div><h3 className="font-bold text-[var(--text-primary)]">Save Sync Pessoal</h3><p className="mt-1 text-sm text-[var(--text-secondary)]">Os arquivos são sincronizados diretamente entre esta pasta privada ou WebDAV e seus jogos. As credenciais ficam cifradas com Android Keystore; não há servidor Pad2PS.</p></div>
+                  <div className="flex flex-wrap gap-2"><button type="button" onClick={()=>setSaveSyncMode('local')} className="theme-control border px-3 py-2 text-sm" style={{borderColor:saveSyncMode==='local'?'var(--accent)':'var(--border-subtle)'}}>Pasta Local / Syncthing</button><button type="button" onClick={()=>setSaveSyncMode('webdav')} className="theme-control border px-3 py-2 text-sm" style={{borderColor:saveSyncMode==='webdav'?'var(--accent)':'var(--border-subtle)'}}>WebDAV Pessoal</button></div>
+                  {saveSyncMode==='local' ? <div className="flex gap-2"><input readOnly value={saveSyncFolder ? 'Pasta privada selecionada' : ''} placeholder="Escolha a pasta base" className="theme-control min-w-0 flex-1 px-3 py-2 text-sm"/><button type="button" onClick={async()=>{try{const result=await SaveSyncNative.pickFolder();setSaveSyncFolder(result.uri);}catch{setSaveSyncFeedback('Seleção da pasta cancelada.');}}} className="theme-control px-3 py-2 text-sm">Escolher pasta</button></div> : <div className="grid gap-2 sm:grid-cols-2"><input value={saveWebdavUrl} onChange={(e)=>setSaveWebdavUrl(e.target.value)} placeholder="URL WebDAV (https://...)" className="theme-control px-3 py-2 text-sm sm:col-span-2"/><input value={saveWebdavUser} onChange={(e)=>setSaveWebdavUser(e.target.value)} placeholder="Usuário" className="theme-control px-3 py-2 text-sm"/><input type="password" value={saveWebdavPassword} onChange={(e)=>setSaveWebdavPassword(e.target.value)} placeholder="Senha ou token" className="theme-control px-3 py-2 text-sm"/></div>}
+                  <div className="flex flex-wrap items-center gap-2"><button type="button" onClick={async()=>{try{const r=await fetch('/api/save-sync/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:saveSyncMode,baseFolderUri:saveSyncFolder,webdavUrl:saveWebdavUrl,username:saveWebdavUser,password:saveWebdavPassword})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Falha ao salvar.');setSaveWebdavPassword('');setSaveSyncFeedback('Configuração protegida e salva neste dispositivo.');}catch(error){setSaveSyncFeedback(error instanceof Error?error.message:'Falha ao salvar.');}}} className="theme-control px-4 py-2 text-sm font-bold text-white" style={{backgroundColor:'var(--accent)'}}>Salvar configuração</button>{saveSyncMode==='webdav'&&<button type="button" onClick={async()=>{try{const r=await fetch('/api/save-sync/test',{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Conexão falhou.');setSaveSyncFeedback('Conexão WebDAV confirmada.');}catch(error){setSaveSyncFeedback(error instanceof Error?error.message:'Conexão falhou.');}}} className="theme-control px-4 py-2 text-sm">Testar Conexão</button>}<span role="status" className="text-sm text-[var(--text-secondary)]">{saveSyncFeedback}</span></div>
+                </section>
               </div>
             )}
 

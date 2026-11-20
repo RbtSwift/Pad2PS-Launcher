@@ -18,7 +18,8 @@ interface GameOptionsModalProps {
   onDelete: () => void;
   onSaveRetroGameId: (id?: number) => void;
   onSaveSaveFolder?: (folder: string) => void;
-  onSyncSaves?: () => void;
+  onPickSaveFolder?: () => Promise<string | undefined>;
+  onSyncSaves?: () => Promise<void> | void;
   onClose: () => void;
 }
 
@@ -35,6 +36,7 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
   onDelete,
   onSaveRetroGameId,
   onSaveSaveFolder,
+  onPickSaveFolder,
   onSyncSaves,
   onClose,
 }) => {
@@ -43,10 +45,13 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
   const [retroInfo, setRetroInfo] = useState<{title:string;unlocked:number;total:number;achievements:Array<{Title:string;Points:number}>}|null>(null);
   const [igdbMetadata, setIgdbMetadata] = useState<IgdbGameMetadata | null>(null);
   const [saveFolder, setSaveFolder] = useState(game.saveFolder || '');
+  const [saveSyncBusy, setSaveSyncBusy] = useState(false);
+  const [saveSyncFeedback, setSaveSyncFeedback] = useState('');
 
   useEffect(() => {
     setConfirmDelete(false);
     setSaveFolder(game.saveFolder || '');
+    setSaveSyncFeedback('');
     setRetroId(game.retroGameId ? String(game.retroGameId) : '');
     setIgdbMetadata(null);
     void fetchIgdbMetadata(game.title).then(setIgdbMetadata).catch(() => {});
@@ -165,8 +170,8 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
 
         <section className="mb-3 rounded-xl bg-white/5 p-3 space-y-2 md:col-start-2">
           <label className="block text-xs font-semibold text-[var(--text-secondary)]">Pasta de Saves (Save Sync)</label>
-          <div className="flex gap-2"><input value={saveFolder} onChange={(event) => setSaveFolder(event.target.value)} placeholder="Caminho ou URI da pasta de saves" className="theme-control min-w-0 flex-1 px-3 py-2 text-sm"/><button type="button" disabled={!onSaveSaveFolder} onClick={() => onSaveSaveFolder?.(saveFolder.trim())} className="theme-control px-3 py-2 text-xs font-bold text-white disabled:opacity-40" style={{backgroundColor:'var(--accent)'}}>Vincular</button></div>
-          <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-secondary)]"><span>{game.saveSyncLastAt ? `Última sincronização: ${new Date(game.saveSyncLastAt).toLocaleString()}` : 'Sincronização sob demanda ou ao iniciar/encerrar o jogo.'}</span><button type="button" disabled={!saveFolder || !onSyncSaves} onClick={onSyncSaves} className="theme-control px-3 py-2 font-bold text-[var(--text-primary)] disabled:opacity-40">Sincronizar Agora</button></div>
+          <div className="flex gap-2"><input value={saveFolder} onChange={(event) => setSaveFolder(event.target.value)} placeholder="Pasta de saves" className="theme-control min-w-0 flex-1 px-3 py-2 text-sm"/>{onPickSaveFolder && <button type="button" onClick={async()=>{const uri=await onPickSaveFolder();if(uri){setSaveFolder(uri);onSaveSaveFolder?.(uri);}}} className="theme-control px-3 py-2 text-xs">Escolher</button>}<button type="button" disabled={!onSaveSaveFolder} onClick={() => onSaveSaveFolder?.(saveFolder.trim())} className="theme-control px-3 py-2 text-xs font-bold text-white disabled:opacity-40" style={{backgroundColor:'var(--accent)'}}>Vincular</button></div>
+          <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-secondary)]"><span>{saveSyncFeedback || (game.saveSyncLastAt ? `Última sincronização: ${new Date(game.saveSyncLastAt).toLocaleString()}` : 'Sincronização sob demanda ou ao iniciar/encerrar o jogo.')}</span><button type="button" disabled={!saveFolder || !onSyncSaves || saveSyncBusy} onClick={async()=>{if(!onSyncSaves)return;setSaveSyncBusy(true);setSaveSyncFeedback('Sincronizando…');try{await onSyncSaves();setSaveSyncFeedback('Sincronização concluída.');}catch(error){setSaveSyncFeedback(error instanceof Error?error.message:'Falha ao sincronizar os saves.');}finally{setSaveSyncBusy(false);}}} className="theme-control px-3 py-2 font-bold text-[var(--text-primary)] disabled:opacity-40">{saveSyncBusy ? 'Sincronizando…' : 'Sincronizar Agora'}</button></div>
         </section>
 
         <div className="flex flex-col gap-2 md:col-start-1 md:row-span-2">

@@ -8,6 +8,7 @@ import {
 } from './components/GameCarousel';
 import { GameFormModal } from './components/GameFormModal';
 import { GameOptionsModal } from './components/GameOptionsModal';
+import { finishPendingAndroidSaveSync } from './utils/androidBridge';
 import { HeroBackdrop } from './components/HeroBackdrop';
 import { LaunchOverlay } from './components/LaunchOverlay';
 import { PageSwitcherPill } from './components/PageSwitcherPill';
@@ -67,7 +68,7 @@ import {
 import { soundEngine } from './utils/sound';
 import { findAutomaticSteamGridDbCover } from './utils/coverSearch';
 import { findLibretroThumbnail } from './utils/libretroThumbnails';
-import { GameScanner, isAndroidNative, listAndroidLaunchableApps, type AndroidLaunchableApp } from './utils/androidBridge';
+import { GameScanner, SaveSyncNative, isAndroidNative, listAndroidLaunchableApps, type AndroidLaunchableApp } from './utils/androidBridge';
 
 const GAMES_STORAGE_KEY = 'pad2ps_launcher_games_v1';
 const SETTINGS_STORAGE_KEY = 'pad2ps_launcher_settings_v1';
@@ -773,9 +774,16 @@ export default function App() {
     fetch('/api/launch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: game.id, command: game.command }),
+      body: JSON.stringify({ id: game.id, command: game.command, title: game.title, saveFolder: game.saveFolder }),
     }).catch(() => {});
   }, [activePage]);
+
+  useEffect(() => {
+    const finishSync = () => { if (document.visibilityState === 'visible') void finishPendingAndroidSaveSync(); };
+    window.addEventListener('focus', finishSync);
+    document.addEventListener('visibilitychange', finishSync);
+    return () => { window.removeEventListener('focus', finishSync); document.removeEventListener('visibilitychange', finishSync); };
+  }, []);
 
   const handleToggleFavorite = useCallback((game: Game) => {
     soundEngine.playFavorite();
@@ -1634,7 +1642,13 @@ export default function App() {
             onDelete={() => handleDeleteGame(selectedGame)}
             onSaveRetroGameId={(retroGameId) => setGames((previous) => previous.map((game) => game.id === selectedGame.id ? { ...game, retroGameId } : game))}
             onSaveSaveFolder={(saveFolder) => setGames((previous) => previous.map((game) => game.id === selectedGame.id ? { ...game, saveFolder } : game))}
-            onSyncSaves={() => fetch('/api/save-sync/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gameId: selectedGame.id, title: selectedGame.title, saveFolder: selectedGame.saveFolder }) }).then((response) => response.json()).then((result) => { if (result.ok) setGames((previous) => previous.map((game) => game.id === selectedGame.id ? { ...game, saveSyncLastAt: Date.now() } : game)); }).catch(() => {})}
+            onPickSaveFolder={async () => { try { const result = await SaveSyncNative.pickFolder(); return result.uri; } catch { return undefined; } }}
+            onSyncSaves={async () => {
+              const response = await fetch('/api/save-sync/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gameId: selectedGame.id, title: selectedGame.title, saveFolder: selectedGame.saveFolder }) });
+              const result = await response.json();
+              if (!response.ok || !result.ok) throw new Error(result.error || 'Não foi possível sincronizar os saves.');
+              setGames((previous) => previous.map((game) => game.id === selectedGame.id ? { ...game, saveSyncLastAt: Date.now() } : game));
+            }}
             onClose={() => {
               soundEngine.playCancel();
               setActiveModal('none');
