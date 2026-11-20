@@ -191,13 +191,6 @@ jobs:
     needs: [build-linux, build-windows, build-android]
     runs-on: ubuntu-latest
     steps:
-      - name: Baixar todos os artefatos
-        uses: actions/download-artifact@v4
-        with:
-          pattern: '*-artifacts'
-          path: ${{ github.workspace }}/all-artifacts
-          merge-multiple: true
-
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.release_tag || github.ref_name }}
@@ -207,6 +200,14 @@ jobs:
           ref: gh-pages
           path: pages
           fetch-depth: 0
+
+      - name: Baixar todos os artefatos
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-artifacts'
+          path: ${{ github.workspace }}/all-artifacts
+          merge-multiple: true
+
       - name: Gerar índices APT e publicar no Pages
         env:
           TAG_NAME: ${{ inputs.release_tag || github.ref_name }}
