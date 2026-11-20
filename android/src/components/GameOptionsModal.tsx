@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Edit3, Filter, Heart, Play, Search, Trash2, X } from 'lucide-react';
+import { Edit3, Filter, Heart, Play, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { Game, LibraryPlatformFilter } from '../types';
 import { CancelButtonIcon, ConfirmButtonIcon } from './ControllerIcons';
 import { loadRetroCredentials, retroRequest } from '../utils/retroAchievements';
 import { fetchIgdbMetadata, type IgdbGameMetadata } from '../utils/igdb';
+import { extractSteamAppId } from '../utils/coverSearch';
 
 interface GameOptionsModalProps {
   game: Game;
@@ -44,18 +45,37 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
   const [retroId, setRetroId] = useState(game.retroGameId ? String(game.retroGameId) : '');
   const [retroInfo, setRetroInfo] = useState<{title:string;unlocked:number;total:number;achievements:Array<{Title:string;Points:number}>}|null>(null);
   const [igdbMetadata, setIgdbMetadata] = useState<IgdbGameMetadata | null>(null);
+  const [igdbMetadataBusy, setIgdbMetadataBusy] = useState(true);
+  const [igdbMetadataError, setIgdbMetadataError] = useState('');
   const [saveFolder, setSaveFolder] = useState(game.saveFolder || '');
   const [saveSyncBusy, setSaveSyncBusy] = useState(false);
   const [saveSyncFeedback, setSaveSyncFeedback] = useState('');
+  const steamAppId = game.steamAppId ? String(game.steamAppId) : extractSteamAppId(game.command) || undefined;
 
   useEffect(() => {
+    let active = true;
     setConfirmDelete(false);
     setSaveFolder(game.saveFolder || '');
     setSaveSyncFeedback('');
     setRetroId(game.retroGameId ? String(game.retroGameId) : '');
     setIgdbMetadata(null);
-    void fetchIgdbMetadata(game.title).then(setIgdbMetadata).catch(() => {});
-  }, [game.id]);
+    setIgdbMetadataBusy(true);
+    setIgdbMetadataError('');
+    void fetchIgdbMetadata(game.title, steamAppId)
+      .then((data) => { if (active) setIgdbMetadata(data); })
+      .catch((error: unknown) => { if (active) setIgdbMetadataError(error instanceof Error ? error.message : 'Metadados IGDB indisponíveis.'); })
+      .finally(() => { if (active) setIgdbMetadataBusy(false); });
+    return () => { active = false; };
+  }, [game.id, game.title, steamAppId]);
+
+  const refreshIgdbMetadata = () => {
+    setIgdbMetadataBusy(true);
+    setIgdbMetadataError('');
+    void fetchIgdbMetadata(game.title, steamAppId, true)
+      .then(setIgdbMetadata)
+      .catch((error: unknown) => setIgdbMetadataError(error instanceof Error ? error.message : 'Metadados IGDB indisponíveis.'))
+      .finally(() => setIgdbMetadataBusy(false));
+  };
 
   useEffect(() => { void (async()=>{ if(!game.retroGameId)return; const credentials=await loadRetroCredentials(); if(!credentials)return; try { const data=await retroRequest<any>('API_GetGameInfoAndUserProgress.php',credentials.username,credentials.key,{g:String(game.retroGameId)}); const rows=Object.values(data.Achievements||{}) as Array<any>; const earned=rows.filter((a)=>a.DateEarned||a.DateEarnedHardcore); setRetroInfo({title:data.Title,unlocked:earned.length,total:rows.length,achievements:earned.slice(0,8).map((a)=>({Title:a.Title,Points:a.Points}))}); }catch{} })(); },[game.id,game.retroGameId]);
 
@@ -159,7 +179,7 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
             <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--accent)' }}>{game.platform || 'Jogo'}</p><h3 className="mt-1 text-xl font-bold text-[var(--text-primary)] sm:text-2xl">{game.title}</h3><p className="mt-2 text-sm text-[var(--text-secondary)]">{game.hoursPlayed || 0} h jogadas{game.favorite ? ' · Favorito' : ''}</p></div>
           </div>
         </section>
-        {igdbMetadata && <section className="mb-3 p-4 rounded-xl bg-white/5 space-y-2 text-sm md:col-start-2 text-[var(--text-secondary)]"><h3 className="font-bold text-base text-[var(--text-primary)]">Ficha técnica · IGDB</h3>{igdbMetadata.year&&<p>Lançamento: {igdbMetadata.year}</p>}{igdbMetadata.genres.length>0&&<p>Gêneros: {igdbMetadata.genres.join(', ')}</p>}{igdbMetadata.developers.length>0&&<p>Desenvolvedora: {igdbMetadata.developers.join(', ')}</p>}{igdbMetadata.summary&&<p className="max-h-36 overflow-y-auto no-scrollbar leading-relaxed">{igdbMetadata.summary}</p>}{igdbMetadata.screenshots.length>0&&<div className="flex gap-2 overflow-x-auto no-scrollbar scroll-smooth py-1">{igdbMetadata.screenshots.map((url)=><img key={url} src={url} alt={`Captura de ${igdbMetadata.name}`} loading="lazy" className="h-24 w-auto rounded-lg object-cover"/>)}</div>}<p className="text-[10px]">Metadados fornecidos por IGDB.</p></section>}
+        {(igdbMetadata || igdbMetadataBusy || igdbMetadataError) && <section className="mb-3 p-4 rounded-xl bg-white/5 space-y-2 text-sm md:col-start-2 text-[var(--text-secondary)]"><div className="flex items-center justify-between gap-2"><h3 className="font-bold text-base text-[var(--text-primary)]">Ficha técnica · IGDB</h3><button type="button" onClick={refreshIgdbMetadata} disabled={igdbMetadataBusy} className="theme-control inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${igdbMetadataBusy ? 'animate-spin' : ''}`} />Atualizar Metadados</button></div>{igdbMetadataBusy && !igdbMetadata && <p>Buscando metadados…</p>}{igdbMetadataError && <p role="status" className="text-rose-300">{igdbMetadataError}</p>}{igdbMetadata && <>{igdbMetadata.year&&<p>Lançamento: {igdbMetadata.year}</p>}{igdbMetadata.genres.length>0&&<p>Gêneros: {igdbMetadata.genres.join(', ')}</p>}{igdbMetadata.developers.length>0&&<p>Desenvolvedora: {igdbMetadata.developers.join(', ')}</p>}{igdbMetadata.summary&&<p className="max-h-36 overflow-y-auto no-scrollbar leading-relaxed">{igdbMetadata.summary}</p>}{igdbMetadata.screenshots.length>0&&<div className="flex gap-2 overflow-x-auto no-scrollbar scroll-smooth py-1">{igdbMetadata.screenshots.map((url)=><img key={url} src={url} alt={`Captura de ${igdbMetadata.name}`} loading="lazy" className="h-24 w-auto rounded-lg object-cover"/>)}</div>}<p className="text-[10px]">Metadados fornecidos por IGDB{steamAppId ? ' e Steam' : ''}.</p></>}</section>}
         {(game.platform === 'Emulador' || Boolean(game.consoleSystem)) && (
           <div className="mb-3 p-3 rounded-lg bg-white/5 space-y-2 md:col-start-2">
             <label className="block text-xs font-semibold text-[var(--text-secondary)]">GameID RetroAchievements</label>

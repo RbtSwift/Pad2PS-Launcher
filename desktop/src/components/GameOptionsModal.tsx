@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Edit3, Filter, FolderOpen, Heart, Play, Search, Trash2, X } from 'lucide-react';
+import { Edit3, Filter, FolderOpen, Heart, Play, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { Game, LibraryPlatformFilter } from '../types';
 import { CancelButtonIcon, ConfirmButtonIcon } from './ControllerIcons';
 import { fetchIgdbMetadata, type IgdbGameMetadata } from '../utils/igdb';
+import { extractSteamAppId } from '../utils/coverSearch';
 
 interface GameOptionsModalProps {
   game: Game;
@@ -44,11 +45,15 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
   const [retroProgress, setRetroProgress] = useState<{ title?: string; total: number; unlocked: number; achievements: Array<{ title: string; description: string; points: number }> } | null>(null);
   const [retroIdInput, setRetroIdInput] = useState(game.retroGameId ? String(game.retroGameId) : '');
   const [igdbMetadata, setIgdbMetadata] = useState<IgdbGameMetadata | null>(null);
+  const [igdbMetadataBusy, setIgdbMetadataBusy] = useState(true);
+  const [igdbMetadataError, setIgdbMetadataError] = useState('');
   const [protonTier, setProtonTier] = useState<string | null>(null);
   const [saveFolder, setSaveFolder] = useState(game.saveFolder || '');
   const [pcgwFeatures, setPcgwFeatures] = useState<{ xboxController: boolean; playstationController: boolean; ultrawide: boolean } | null>(null);
+  const steamAppId = game.steamAppId ? String(game.steamAppId) : extractSteamAppId(game.command) || undefined;
 
   useEffect(() => {
+    let active = true;
     setConfirmDelete(false);
     setSaveFolder(game.saveFolder || '');
     setAchievements(null);
@@ -56,7 +61,12 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
     setIgdbMetadata(null);
     setProtonTier(null);
     setPcgwFeatures(null);
-    void fetchIgdbMetadata(game.title).then(setIgdbMetadata).catch(() => {});
+    setIgdbMetadataBusy(true);
+    setIgdbMetadataError('');
+    void fetchIgdbMetadata(game.title, steamAppId)
+      .then((data) => { if (active) setIgdbMetadata(data); })
+      .catch((error: unknown) => { if (active) setIgdbMetadataError(error instanceof Error ? error.message : 'Metadados IGDB indisponíveis.'); })
+      .finally(() => { if (active) setIgdbMetadataBusy(false); });
     const appId = Number(game.steamAppId || game.command.match(/steam:\/\/(?:rungameid|install)\/(\d+)/i)?.[1]);
     if (appId && !game.steamRemote) {
       fetch(`/api/steam/achievements?appId=${appId}`).then((response) => response.ok ? response.json() : null).then((data) => { if (data?.available) setAchievements(data); }).catch(() => {});
@@ -65,7 +75,17 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
     } else if (game.platformLabel === 'PC') {
       fetch(`/api/game-tech/pcgw?title=${encodeURIComponent(game.title)}`).then((response) => response.ok ? response.json() : null).then((result) => { if (result?.available) setPcgwFeatures(result.data); }).catch(() => {});
     }
-  }, [game.id]);
+    return () => { active = false; };
+  }, [game.id, game.title, steamAppId]);
+
+  const refreshIgdbMetadata = () => {
+    setIgdbMetadataBusy(true);
+    setIgdbMetadataError('');
+    void fetchIgdbMetadata(game.title, steamAppId, true)
+      .then(setIgdbMetadata)
+      .catch((error: unknown) => setIgdbMetadataError(error instanceof Error ? error.message : 'Metadados IGDB indisponíveis.'))
+      .finally(() => setIgdbMetadataBusy(false));
+  };
 
   useEffect(() => {
     const id = Number(game.retroGameId);
@@ -183,7 +203,7 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
           </div>
         </section>
         {game.steamLogoUrl && <img src={game.steamLogoUrl} alt={`${game.title} logo`} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="max-h-14 max-w-[70%] object-contain mb-3 md:col-start-2" />}
-        {igdbMetadata && <section className="mb-3 p-4 rounded-xl bg-white/5 space-y-2 text-sm md:col-start-2 text-[var(--text-secondary)]"><h3 className="font-bold text-base text-[var(--text-primary)]">Ficha técnica</h3><div className="flex flex-wrap gap-x-4 gap-y-1">{igdbMetadata.year && <p>Lançamento: {igdbMetadata.year}</p>}{igdbMetadata.rating !== null && <p>Avaliação: {Math.round(igdbMetadata.rating)}%</p>}{igdbMetadata.genres.length > 0 && <p>Gêneros: {igdbMetadata.genres.join(', ')}</p>}{igdbMetadata.developers.length > 0 && <p>Desenvolvedora: {igdbMetadata.developers.join(', ')}</p>}</div>{igdbMetadata.summary && <p className="max-h-32 overflow-y-auto no-scrollbar leading-relaxed">{igdbMetadata.summary}</p>}{igdbMetadata.screenshots.length > 0 && <div className="flex gap-2 overflow-x-auto no-scrollbar scroll-smooth py-1">{igdbMetadata.screenshots.map((url) => <img key={url} src={url} alt={`Captura de ${igdbMetadata.name}`} loading="lazy" className="h-24 w-auto rounded object-cover" />)}</div>}<p className="text-[10px]">Metadados fornecidos por IGDB.</p></section>}
+        {(igdbMetadata || igdbMetadataBusy || igdbMetadataError) && <section className="mb-3 p-4 rounded-xl bg-white/5 space-y-2 text-sm md:col-start-2 text-[var(--text-secondary)]"><div className="flex items-center justify-between gap-2"><h3 className="font-bold text-base text-[var(--text-primary)]">Ficha técnica</h3><button type="button" onClick={refreshIgdbMetadata} disabled={igdbMetadataBusy} className="theme-control inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${igdbMetadataBusy ? 'animate-spin' : ''}`} />Atualizar Metadados</button></div>{igdbMetadataBusy && !igdbMetadata && <p>Buscando metadados…</p>}{igdbMetadataError && <p role="status" className="text-rose-300">{igdbMetadataError}</p>}{igdbMetadata && <><div className="flex flex-wrap gap-x-4 gap-y-1">{igdbMetadata.year && <p>Lançamento: {igdbMetadata.year}</p>}{igdbMetadata.rating !== null && <p>Avaliação: {Math.round(igdbMetadata.rating)}%</p>}{igdbMetadata.genres.length > 0 && <p>Gêneros: {igdbMetadata.genres.join(', ')}</p>}{igdbMetadata.developers.length > 0 && <p>Desenvolvedora: {igdbMetadata.developers.join(', ')}</p>}</div>{igdbMetadata.summary && <p className="max-h-32 overflow-y-auto no-scrollbar leading-relaxed">{igdbMetadata.summary}</p>}{igdbMetadata.screenshots.length > 0 && <div className="flex gap-2 overflow-x-auto no-scrollbar scroll-smooth py-1">{igdbMetadata.screenshots.map((url) => <img key={url} src={url} alt={`Captura de ${igdbMetadata.name}`} loading="lazy" className="h-24 w-auto rounded object-cover" />)}</div>}<p className="text-[10px]">Metadados fornecidos por IGDB{steamAppId ? ' e Steam' : ''}.</p></>}</section>}
         {(protonTier || pcgwFeatures) && <section className="mb-3 flex flex-wrap gap-2 md:col-start-2">{protonTier && <span className={`rounded-full px-3 py-1 text-xs font-bold ${protonTier === 'Platinum' ? 'bg-sky-400/20 text-sky-300' : protonTier === 'Gold' ? 'bg-amber-400/20 text-amber-300' : protonTier === 'Silver' ? 'bg-slate-300/20 text-slate-200' : protonTier === 'Bronze' ? 'bg-orange-500/20 text-orange-300' : 'bg-rose-500/20 text-rose-300'}`}>ProtonDB · {protonTier}</span>}{pcgwFeatures?.xboxController && <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-semibold text-emerald-300">Controle Xbox</span>}{pcgwFeatures?.playstationController && <span className="rounded-full bg-blue-400/15 px-3 py-1 text-xs font-semibold text-blue-300">Controle PlayStation</span>}{pcgwFeatures?.ultrawide && <span className="rounded-full bg-violet-400/15 px-3 py-1 text-xs font-semibold text-violet-300">Ultrawide</span>}</section>}
         {(typeof game.steamPlaytimeHours === 'number' || achievements) && (
           <div className="mb-3 p-3 rounded-lg bg-white/5 text-xs md:col-start-1 text-[var(--text-secondary)] space-y-1">

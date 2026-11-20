@@ -1,11 +1,11 @@
 ## Português (Brasil)
 
-- Adiciona a seção Sobre & Legal com versão, informações de privacidade local, resumo dos termos, contato e links oficiais.
-- Garante navegação por controle/D-Pad e modal widescreen sem barras de rolagem visíveis na nova seção.
-- Publica changelogs Debian no repositório APT para consultar as novidades antes de atualizar.
+- Corrige a busca de metadados com Steam AppID, usando a correspondência exata da IGDB e os dados oficiais da Steam como alternativa.
+- Restringe a busca por nome a jogos principais, remakes e remasters com título normalizado exatamente igual.
+- Adiciona a ação Atualizar Metadados para substituir resultados incorretos já armazenados no cache local.
 
 ## English
 
-- Adds an About & Legal section with the app version, local privacy information, terms summary, contact details, and official links.
-- Supports controller/D-Pad navigation and a widescreen summary dialog without visible browser scrollbars.
-- Publishes Debian changelogs in the APT repository so users can review updates before installing.
+- Fixes metadata lookup by Steam AppID, using IGDB's exact match and official Steam data as a fallback.
+- Restricts title searches to main games, remakes, and remasters with an exactly matching normalized title.
+- Adds an Update Metadata action to replace incorrect results already stored in the local cache.

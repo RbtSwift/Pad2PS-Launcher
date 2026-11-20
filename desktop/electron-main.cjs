@@ -235,36 +235,100 @@ async function getPcGamingWikiSummary(appId, title) {
     return data;
   } catch { return null; }
 }
-async function getIgdbGameMetadata(titleInput, { refresh = false } = {}) {
+async function getSteamStoreMetadata(appId) {
+  if (!/^\d{1,10}$/.test(String(appId || ''))) return null;
+  const response = await fetch(`https://store.steampowered.com/api/appdetails?appids=${appId}`);
+  if (!response.ok) return null;
+  const result = await response.json();
+  const game = result?.[appId]?.data;
+  if (!result?.[appId]?.success || !game) return null;
+  const releaseDate = String(game.release_date?.date || '').match(/\b(19|20)\d{2}\b/);
+  return {
+    id: Number(appId),
+    name: game.name || '',
+    summary: game.short_description || '',
+    year: releaseDate ? Number(releaseDate[0]) : null,
+    genres: Array.isArray(game.genres) ? game.genres.map((genre) => genre.description).filter(Boolean) : [],
+    developers: Array.isArray(game.developers) ? game.developers : [],
+    screenshots: Array.isArray(game.screenshots) ? game.screenshots.map((shot) => shot.path_full).filter(Boolean).slice(0, 5) : [],
+    rating: null,
+  };
+}
+async function getIgdbGameMetadata(titleInput, { appId = '', refresh = false } = {}) {
   const title = cleanIgdbTitle(titleInput);
   if (!title) throw new Error('Título do jogo vazio.');
+  appId = /^\d{1,10}$/.test(String(appId || '')) ? String(appId) : '';
   const cache = readIgdbMetadataCache();
-  const cacheKey = title.toLocaleLowerCase();
+  const cacheKey = appId ? `steam:${appId}` : title.toLocaleLowerCase();
   if (!refresh && cache[cacheKey]) return cache[cacheKey];
   const credentials = readIgdbCredentials();
-  if (!credentials?.clientId || !credentials?.clientSecret) throw new Error('Configure Client ID e Client Secret da IGDB nas Configurações.');
-  const token = await getIgdbToken(credentials);
   const safeTitle = title.replace(/["\\]/g, ' ');
-  const fields = 'fields name,summary,first_release_date,genres.name,involved_companies.company.name,involved_companies.developer,screenshots.image_id,rating,total_rating_count,follows;';
+  const fields = 'fields id,name,summary,first_release_date,genres.name,involved_companies.company.name,involved_companies.developer,screenshots.image_id,rating,total_rating_count,follows,category;';
   const request = async (query) => {
     const response = await fetch('https://api.igdb.com/v4/games', { method: 'POST', headers: { 'Client-ID': credentials.clientId, Authorization: `Bearer ${token}`, 'Content-Type': 'text/plain' }, body: query });
     if (!response.ok) throw new Error(`IGDB respondeu HTTP ${response.status}.`);
     return response.json();
   };
-  const exactRows = await request(`${fields} where name = "${safeTitle}"; sort total_rating_count desc; limit 5;`);
-  const rows = exactRows.length ? exactRows : await request(`${fields} search "${safeTitle}"; sort total_rating_count desc; limit 5;`);
   const normalized = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  rows.sort((a, b) => Number(normalized(b.name) === normalized(title)) - Number(normalized(a.name) === normalized(title)) || Number(b.total_rating_count || 0) - Number(a.total_rating_count || 0) || Number(b.follows || 0) - Number(a.follows || 0));
-  const game = Array.isArray(rows) ? rows[0] : null;
-  if (!game) throw new Error('Nenhum resultado encontrado na IGDB.');
-  const data = {
+  const toMetadata = (game) => ({
     id: game.id, name: game.name || title, summary: game.summary || '',
     year: game.first_release_date ? new Date(game.first_release_date * 1000).getUTCFullYear() : null,
     genres: Array.isArray(game.genres) ? game.genres.map((genre) => genre.name).filter(Boolean) : [],
     developers: Array.isArray(game.involved_companies) ? game.involved_companies.filter((company) => company.developer).map((company) => company.company?.name).filter(Boolean) : [],
     screenshots: Array.isArray(game.screenshots) ? game.screenshots.map((shot) => `https://images.igdb.com/igdb/image/upload/t_screenshot_big/${shot.image_id}.jpg`).filter(Boolean).slice(0, 5) : [],
     rating: game.rating || null,
-  };
+  });
+  let token = '';
+  let igdbError = null;
+  if (credentials?.clientId && credentials?.clientSecret) {
+    try {
+      token = await getIgdbToken(credentials);
+      if (appId) {
+        const externalResponse = await fetch('https://api.igdb.com/v4/external_games', {
+          method: 'POST',
+          headers: { 'Client-ID': credentials.clientId, Authorization: `Bearer ${token}`, 'Content-Type': 'text/plain' },
+          body: `fields game.id,game.name,game.summary,game.first_release_date,game.genres.name,game.involved_companies.company.name,game.involved_companies.developer,game.screenshots.image_id,game.rating,game.total_rating_count,game.follows; where uid = "${appId}" & category = 1; limit 1;`,
+        });
+        if (!externalResponse.ok) throw new Error(`IGDB respondeu HTTP ${externalResponse.status}.`);
+        const externalRows = await externalResponse.json();
+        const exactGame = externalRows?.[0]?.game;
+        if (exactGame) {
+          const data = toMetadata(exactGame);
+          if (appId) delete cache[title.toLocaleLowerCase()];
+          cache[cacheKey] = data;
+          fs.writeFileSync(IGDB_METADATA_CACHE_FILE, JSON.stringify(cache), { mode: 0o600 });
+          return data;
+        }
+      }
+    } catch (error) {
+      igdbError = error;
+    }
+  }
+  if (appId) {
+    try {
+      const steamData = await getSteamStoreMetadata(appId);
+      if (steamData) {
+        delete cache[title.toLocaleLowerCase()];
+        cache[cacheKey] = steamData;
+        fs.writeFileSync(IGDB_METADATA_CACHE_FILE, JSON.stringify(cache), { mode: 0o600 });
+        return steamData;
+      }
+    } catch {}
+  }
+  if (!credentials?.clientId || !credentials?.clientSecret) {
+    throw new Error(igdbError?.message || 'Configure Client ID e Client Secret da IGDB nas Configurações.');
+  }
+  if (!token) token = await getIgdbToken(credentials);
+  const exactRows = await request(`${fields} where name = "${safeTitle}" & category = (0, 8, 9); sort total_rating_count desc; limit 20;`);
+  const rows = exactRows.length ? exactRows : await request(`${fields} search "${safeTitle}"; where category = (0, 8, 9); sort total_rating_count desc; limit 20;`);
+  const exactTitle = normalized(title);
+  const game = Array.isArray(rows)
+    ? rows.filter((candidate) => normalized(candidate.name) === exactTitle)
+      .sort((a, b) => Number(b.total_rating_count || 0) - Number(a.total_rating_count || 0) || Number(b.follows || 0) - Number(a.follows || 0))[0]
+    : null;
+  if (!game) throw new Error(igdbError?.message || 'Nenhum resultado com título exatamente correspondente foi encontrado na IGDB.');
+  const data = toMetadata(game);
+  if (appId) delete cache[title.toLocaleLowerCase()];
   cache[cacheKey] = data;
   fs.writeFileSync(IGDB_METADATA_CACHE_FILE, JSON.stringify(cache), { mode: 0o600 });
   return data;
@@ -1184,8 +1248,9 @@ function startHttpServer() {
       }
       if (req.method === 'GET' && pathname === '/api/igdb/game') {
         const title = url.searchParams.get('title') || '';
+        const appId = url.searchParams.get('appId') || '';
         const refresh = url.searchParams.get('refresh') === '1';
-        void getIgdbGameMetadata(title, { refresh }).then((data) => sendJson({ available: true, data })).catch((error) => sendJson({ available: false, reason: error.message || 'Metadados IGDB indisponíveis.' }));
+        void getIgdbGameMetadata(title, { appId, refresh }).then((data) => sendJson({ available: true, data })).catch((error) => sendJson({ available: false, reason: error.message || 'Metadados IGDB indisponíveis.' }));
         return;
       }
       if (req.method === 'GET' && pathname === '/api/game-tech/protondb') {

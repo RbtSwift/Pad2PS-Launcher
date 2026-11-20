@@ -114,6 +114,7 @@ export interface Game {
   platform: Platform;
   platformLabel?: string;
   consoleSystem?: string;
+  steamAppId?: number;
   coverUrl: string;
   isCustomCover?: boolean;
   isAutomaticCoverFallback?: boolean;

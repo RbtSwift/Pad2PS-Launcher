@@ -8,12 +8,12 @@ interface IgdbPlugin {
   config(): Promise<{configured: boolean; clientId: string}>;
   saveCredentials(options: {clientId: string; clientSecret: string}): Promise<{configured: boolean}>;
   clear(): Promise<{ok: boolean}>;
-  game(options: {title: string}): Promise<{available: boolean; data?: IgdbGameMetadata; reason?: string}>;
+  game(options: {title: string; appId?: string; refresh?: boolean}): Promise<{available: boolean; data?: IgdbGameMetadata; reason?: string}>;
 }
 export const IgdbNative = registerPlugin<IgdbPlugin>('Igdb');
 
-export async function fetchIgdbMetadata(title: string): Promise<IgdbGameMetadata | null> {
-  const result = await IgdbNative.game({title});
+export async function fetchIgdbMetadata(title: string, appId?: string, refresh = false): Promise<IgdbGameMetadata | null> {
+  const result = await IgdbNative.game({title, appId, refresh});
   if (!result.available || !result.data) throw new Error(result.reason || 'Metadados IGDB indisponíveis.');
   return result.data;
 }

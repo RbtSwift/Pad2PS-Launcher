@@ -21,6 +21,12 @@
   </developer>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="1.0.19" date="2026-11-20">
+      <description>
+        <p>Corrige a correspondência dos metadados por Steam AppID, restringe buscas por nome ao título exato e permite atualizar os metadados em cache.</p>
+        <p>Fixes metadata matching by Steam AppID, restricts title searches to exact matches, and allows cached metadata to be refreshed.</p>
+      </description>
+    </release>
     <release version="1.0.18" date="2026-11-20">
       <description>
         <p>Adiciona a seção Sobre &amp; Legal e publica changelogs Debian no repositório APT.</p>
