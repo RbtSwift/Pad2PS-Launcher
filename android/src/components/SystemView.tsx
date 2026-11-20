@@ -13,17 +13,21 @@ import {
   BookOpen,
   Check,
   Clock,
+  Copy,
   Download,
   ExternalLink,
   Eye,
   EyeOff,
   FileJson,
   Gamepad2,
+  Github,
+  Globe2,
   Image as ImageIcon,
   Images,
   KeyRound,
   Library,
   Link2,
+  Mail,
   Monitor,
   Moon,
   Palette,
@@ -123,8 +127,15 @@ const CATEGORIES: {
   { id: 'controller', label: 'Controle & Atalhos', icon: Gamepad2 },
   { id: 'integrations', label: 'Integrações', icon: Link2 },
   { id: 'library', label: 'Biblioteca & Dados', icon: Library },
+  { id: 'about', label: 'Sobre & Legal', icon: ShieldCheck },
   { id: 'power', label: 'Energia & Web Pad2PS', icon: Power },
 ];
+
+const OFFICIAL_SITE_URL = 'https://www.pad2ps.com.br';
+const OFFICIAL_TERMS_URL = `${OFFICIAL_SITE_URL}/termos-de-uso`;
+const OFFICIAL_EMAIL = 'contato@pad2ps.com.br';
+const ABOUT_ACTION_COUNT = 10;
+const LEGAL_MODAL_ACTION_COUNT = 3;
 
 const THEME_DESCRIPTIONS: Record<ThemeId, string> = {
   'pad2ps-default':
@@ -305,8 +316,11 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
     const contentRefs = useRef<(HTMLElement | null)[]>([]);
     const categoryRefs = useRef<(HTMLButtonElement | null)[]>([]);
     const integrationCardRefs = useRef<(HTMLButtonElement | null)[]>([]);
+    const legalModalButtonsRef = useRef<(HTMLButtonElement | null)[]>([]);
 
     const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
+    const [isLegalSummaryOpen, setIsLegalSummaryOpen] = useState(false);
+    const [legalModalFocusIndex, setLegalModalFocusIndex] = useState(0);
 
     const [activeCategory, setActiveCategory] =
       useState<SystemCategory>(initialCategory);
@@ -455,6 +469,8 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           return 2 + 2;
         case 'library':
           return 4; // Add, Export, Import, Reset
+        case 'about':
+          return ABOUT_ACTION_COUNT;
         case 'power':
           return (
             2 +
@@ -594,6 +610,10 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
     };
 
     const activateContentItem = (idx: number) => {
+      if (activeCategory === 'about') {
+        contentRefs.current[idx]?.click();
+        return;
+      }
       if (activeCategory === 'integrations') {
         if (idx < 2) {
           const integration = (['steam', 'retro'] as const)[idx];
@@ -808,6 +828,17 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
       showToast('URL da imagem aplicada ao Modo Descanso!');
     };
 
+    const handleCopyContactEmail = async () => {
+      try {
+        await navigator.clipboard.writeText(OFFICIAL_EMAIL);
+        soundEngine.playConfirm();
+        showToast('E-mail copiado para a área de transferência.');
+      } catch {
+        soundEngine.playCancel();
+        showToast('Não foi possível copiar o e-mail neste dispositivo.');
+      }
+    };
+
     useEffect(() => {
       if (focusPane === 'content') {
         const target = activeCategory === 'integrations' && contentFocusIndex < 2
@@ -826,10 +857,41 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
       }
     }, [focusPane, contentFocusIndex, activeCategory, activeIntegration]);
 
+    useEffect(() => {
+      if (isLegalSummaryOpen) {
+        legalModalButtonsRef.current[legalModalFocusIndex]?.focus();
+      }
+    }, [isLegalSummaryOpen, legalModalFocusIndex]);
+
+    useEffect(() => {
+      if (!isLegalSummaryOpen) return;
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          event.stopPropagation();
+          soundEngine.playCancel();
+          setIsLegalSummaryOpen(false);
+        }
+      };
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [isLegalSummaryOpen]);
+
     useImperativeHandle(ref, () => ({
       navigate: (dir) => {
         if (capturingAction) return;
         soundEngine.playMove();
+        if (isLegalSummaryOpen) {
+          if (dir === 'up' || dir === 'left') {
+            setLegalModalFocusIndex(
+              (curr) => (curr - 1 + LEGAL_MODAL_ACTION_COUNT) % LEGAL_MODAL_ACTION_COUNT
+            );
+          } else if (dir === 'down' || dir === 'right') {
+            setLegalModalFocusIndex(
+              (curr) => (curr + 1) % LEGAL_MODAL_ACTION_COUNT
+            );
+          }
+          return;
+        }
         const catIdx = CATEGORIES.findIndex((c) => c.id === activeCategory);
 
         if (focusPane === 'categories') {
@@ -863,6 +925,11 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
       },
       confirm: () => {
         if (capturingAction) return;
+        if (isLegalSummaryOpen) {
+          soundEngine.playConfirm();
+          legalModalButtonsRef.current[legalModalFocusIndex]?.click();
+          return;
+        }
         if (focusPane === 'categories') {
           soundEngine.playTab();
           setFocusPane('content');
@@ -877,6 +944,11 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
           onCancelCaptureButton();
           return true;
         }
+        if (isLegalSummaryOpen) {
+          soundEngine.playCancel();
+          setIsLegalSummaryOpen(false);
+          return true;
+        }
         if (focusPane === 'content') {
           soundEngine.playCancel();
           setFocusPane('categories');
@@ -887,8 +959,80 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
     }));
 
     const safeTranslatorUrl = getSafeUrl(settings.translatorUrl);
+    const aboutActions: {
+      label: string;
+      description: string;
+      icon: typeof Palette;
+      url?: string;
+      onActivate?: () => void;
+    }[] = [
+      {
+        label: 'Site oficial Pad2PS',
+        description: OFFICIAL_SITE_URL,
+        icon: Globe2,
+        url: OFFICIAL_SITE_URL,
+      },
+      {
+        label: 'Resumo dos Termos e da Privacidade',
+        description: 'Leia as informações principais sem sair do aplicativo.',
+        icon: BookOpen,
+        onActivate: () => {
+          setLegalModalFocusIndex(0);
+          setIsLegalSummaryOpen(true);
+        },
+      },
+      {
+        label: 'Termos de Uso completos',
+        description: 'Página oficial de Termos de Uso e Política de Privacidade.',
+        icon: ExternalLink,
+        url: OFFICIAL_TERMS_URL,
+      },
+      {
+        label: 'Política de Privacidade completa',
+        description: 'Disponível junto aos Termos na página oficial.',
+        icon: ShieldCheck,
+        url: OFFICIAL_TERMS_URL,
+      },
+      {
+        label: 'Copiar e-mail de contato',
+        description: OFFICIAL_EMAIL,
+        icon: Copy,
+        onActivate: () => void handleCopyContactEmail(),
+      },
+      {
+        label: 'Enviar e-mail',
+        description: `Abrir seu aplicativo de e-mail para ${OFFICIAL_EMAIL}.`,
+        icon: Mail,
+        url: `mailto:${OFFICIAL_EMAIL}`,
+      },
+      {
+        label: 'GitHub Issues',
+        description: 'Relate problemas ou envie sugestões para o projeto.',
+        icon: Github,
+        url: 'https://github.com/RbtSwift/Pad2PS-Launcher/issues',
+      },
+      {
+        label: 'Repositório oficial no GitHub',
+        description: 'github.com/RbtSwift/Pad2PS-Launcher',
+        icon: Github,
+        url: 'https://github.com/RbtSwift/Pad2PS-Launcher',
+      },
+      {
+        label: 'X',
+        description: 'Acompanhe o Pad2PS em x.com/Pad2PS.',
+        icon: Globe2,
+        url: 'https://x.com/Pad2PS',
+      },
+      {
+        label: 'Paçoca',
+        description: 'Acompanhe o perfil oficial em pacoca.net/@Pad2PS.',
+        icon: Globe2,
+        url: 'https://pacoca.net/@Pad2PS',
+      },
+    ];
 
     return (
+      <>
       <main className="relative z-10 flex-1 min-h-0 px-6 sm:px-10 lg:px-16 py-2 flex flex-col overflow-hidden">
         <input
           ref={fileInputRef}
@@ -2803,9 +2947,138 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                 })()}
               </div>
             )}
+
+            {activeCategory === 'about' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="font-display text-xl lg:text-2xl font-extrabold text-[var(--text-primary)]">
+                    Sobre &amp; Legal
+                  </h2>
+                  <p className="mt-1 text-sm lg:text-base text-[var(--text-secondary)]">
+                    Pad2PS Launcher {CURRENT_APP_VERSION} · aplicativo local, sem servidores próprios de coleta ou telemetria.
+                  </p>
+                </div>
+
+                <div className="theme-control flex items-start gap-3 border p-4 sm:p-5" role="note" style={{ backgroundColor: 'rgba(var(--accent-rgb), 0.10)', borderColor: 'var(--accent)' }}>
+                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" style={{ color: 'var(--accent)' }} />
+                  <div className="space-y-1 text-sm leading-relaxed text-[var(--text-secondary)]">
+                    <p className="font-bold text-[var(--text-primary)]">Privacidade local</p>
+                    <p>Biblioteca, preferências e credenciais pessoais ficam no dispositivo. Chaves de conta e dados de WebDAV são protegidos pelo armazenamento criptografado local (Android Keystore no Android e armazenamento seguro do sistema no Desktop). Consultas a serviços externos são feitas pelo dispositivo e seguem também as políticas desses provedores.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {aboutActions.map((item, idx) => {
+                    const Icon = item.icon;
+                    const isFocused =
+                      focusPane === 'content' && contentFocusIndex === idx;
+                    return (
+                      <button
+                        key={item.label}
+                        ref={(el) => {
+                          contentRefs.current[idx] = el;
+                        }}
+                        type="button"
+                        onMouseEnter={() => {
+                          setFocusPane('content');
+                          setContentFocusIndex(idx);
+                        }}
+                        onClick={() => {
+                          if (item.url) {
+                            window.open(item.url, '_blank', 'noopener,noreferrer');
+                          } else {
+                            item.onActivate?.();
+                          }
+                        }}
+                        className="theme-control w-full flex items-center gap-4 p-4 text-left transition-all cursor-pointer"
+                        style={{
+                          backgroundColor: isFocused
+                            ? 'rgba(var(--accent-rgb), 0.16)'
+                            : 'var(--bg-deep)',
+                          border: isFocused
+                            ? '2px solid var(--accent)'
+                            : '1px solid var(--border-subtle)',
+                          boxShadow: isFocused ? 'var(--accent-glow)' : undefined,
+                        }}
+                      >
+                        <div className="theme-control w-11 h-11 flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--accent)' }}>
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-display text-base font-bold text-[var(--text-primary)]">
+                            {item.label}
+                          </p>
+                          <p className="text-sm text-[var(--text-secondary)] mt-0.5 leading-relaxed break-words">
+                            {item.description}
+                          </p>
+                        </div>
+                        {item.url && <ExternalLink className="w-4 h-4 shrink-0 text-[var(--text-secondary)]" />}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+                  Discord: não foi encontrado convite de servidor nos canais oficiais publicados; nenhum link não verificado é exibido.
+                </p>
+              </div>
+            )}
           </section>
         </div>
       </main>
+      {isLegalSummaryOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 sm:p-8">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="legal-summary-title"
+            className="theme-surface w-full max-w-4xl max-h-[88vh] overflow-y-auto no-scrollbar p-6 sm:p-8 lg:p-10"
+            style={{ backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-subtle)' }}
+          >
+            <h2 id="legal-summary-title" className="font-display text-2xl lg:text-3xl font-extrabold text-[var(--text-primary)]">
+              Termos de Uso &amp; Política de Privacidade
+            </h2>
+            <div className="mt-5 space-y-4 text-sm sm:text-base leading-relaxed text-[var(--text-secondary)]">
+              <p>O Pad2PS Launcher organiza jogos e recursos disponíveis no dispositivo do usuário. O usuário é responsável por respeitar as licenças e os termos dos jogos, plataformas e serviços que utiliza.</p>
+              <p>O aplicativo não possui servidores próprios de coleta ou telemetria. Biblioteca, preferências e credenciais pessoais permanecem no dispositivo; chaves de conta e credenciais WebDAV são protegidas pelo armazenamento criptografado local, usando Android Keystore no Android e armazenamento seguro do sistema no Desktop.</p>
+              <p>Quando você solicita recursos de serviços externos, como sincronização de conta ou consulta de metadados, o dispositivo se conecta diretamente a esses provedores. Cada provedor pode tratar dados conforme seus próprios termos e políticas.</p>
+              <p>Este resumo não substitui os documentos oficiais, que podem ser atualizados. Consulte a página completa antes de usar os serviços.</p>
+            </div>
+            <div className="mt-7 flex flex-wrap gap-3">
+              {[
+                { label: 'Termos de Uso completos', url: OFFICIAL_TERMS_URL },
+                { label: 'Política de Privacidade completa', url: OFFICIAL_TERMS_URL },
+                { label: 'Fechar', close: true },
+              ].map((item, idx) => {
+                const isFocused = legalModalFocusIndex === idx;
+                return (
+                  <button
+                    key={item.label}
+                    ref={(el) => {
+                      legalModalButtonsRef.current[idx] = el;
+                    }}
+                    type="button"
+                    onMouseEnter={() => setLegalModalFocusIndex(idx)}
+                    onClick={() => {
+                      if (item.close) setIsLegalSummaryOpen(false);
+                      else if (item.url) window.open(item.url, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="theme-control px-5 py-3 font-bold transition-all"
+                    style={{
+                      backgroundColor: isFocused ? 'rgba(var(--accent-rgb), 0.18)' : 'var(--bg-surface)',
+                      border: isFocused ? '2px solid var(--accent)' : '1px solid var(--border-subtle)',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      )}
+      </>
     );
   }
 );

@@ -4,7 +4,7 @@ export interface AppReleaseAsset {
   size: number;
 }
 
-export const CURRENT_APP_VERSION = '1.0.17';
+export const CURRENT_APP_VERSION = '1.0.18';
 
 export interface UpdateCheckResult {
   hasUpdate: boolean;

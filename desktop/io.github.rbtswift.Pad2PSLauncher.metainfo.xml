@@ -21,6 +21,12 @@
   </developer>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="1.0.18" date="2026-11-20">
+      <description>
+        <p>Adiciona a seção Sobre &amp; Legal e publica changelogs Debian no repositório APT.</p>
+        <p>Adds the About &amp; Legal section and publishes Debian changelogs in the APT repository.</p>
+      </description>
+    </release>
     <release version="1.0.17" date="2026-11-20">
       <description>
         <p>Implementa Save Sync Pessoal no Android, com seletor SAF, cofre Keystore, backups ZIP e sincronização direta por pasta local ou WebDAV.</p>

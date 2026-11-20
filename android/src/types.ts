@@ -28,6 +28,7 @@ export type SystemCategory =
   | 'controller'
   | 'integrations'
   | 'library'
+  | 'about'
   | 'power';
 
 export type FilterTab =

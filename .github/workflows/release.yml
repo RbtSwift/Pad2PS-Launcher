@@ -221,8 +221,10 @@ jobs:
           TAG_NAME: ${{ inputs.release_tag || github.ref_name }}
         run: |
           sudo apt-get update && sudo apt-get install -y dpkg-dev
-          cd "$GITHUB_WORKSPACE/all-artifacts"
           VERSION="${TAG_NAME#v}"
+          CHANGELOG_PATH="$GITHUB_WORKSPACE/pages/apt/changelogs/main/p/pad2ps-launcher/pad2ps-launcher_${VERSION}.changelog"
+          python3 "$GITHUB_WORKSPACE/.github/scripts/generate-apt-changelog.py" "$VERSION" "$GITHUB_WORKSPACE/RELEASE_NOTES.md" "$CHANGELOG_PATH"
+          cd "$GITHUB_WORKSPACE/all-artifacts"
           dpkg-scanpackages -m . /dev/null | sed 's#Filename: ./#Filename: #' > Packages
           gzip -n -9 -c Packages > Packages.gz
           PACKAGES_SHA=$(sha256sum Packages | cut -d' ' -f1)
@@ -240,6 +242,7 @@ jobs:
           Components: main
           Description: Official Pad2PS Launcher APT repository
           Acquire-By-Hash: no
+          Changelogs: https://rbtswift.github.io/Pad2PS-Launcher/apt/changelogs/@CHANGEPATH@.changelog
           SHA256:
            ${PACKAGES_SHA} ${PACKAGES_SIZE} Packages
            ${GZIP_SHA} ${GZIP_SIZE} Packages.gz
@@ -248,7 +251,7 @@ jobs:
           cp Packages Packages.gz Release ../pages/apt/
           git -C ../pages config user.name "github-actions[bot]"
           git -C ../pages config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git -C ../pages add apt/Packages apt/Packages.gz apt/Release
+          git -C ../pages add apt/Packages apt/Packages.gz apt/Release apt/changelogs
           git -C ../pages commit -m "Update APT index for v${VERSION}"
           git -C ../pages push origin gh-pages
       - name: Criar Release no GitHub
