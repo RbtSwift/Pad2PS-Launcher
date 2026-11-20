@@ -3,6 +3,7 @@ import { Edit3, Filter, Heart, Play, Search, Trash2, X } from 'lucide-react';
 import { Game, LibraryPlatformFilter } from '../types';
 import { CancelButtonIcon, ConfirmButtonIcon } from './ControllerIcons';
 import { loadRetroCredentials, retroRequest } from '../utils/retroAchievements';
+import { fetchIgdbMetadata, type IgdbGameMetadata } from '../utils/igdb';
 
 interface GameOptionsModalProps {
   game: Game;
@@ -36,10 +37,13 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [retroId, setRetroId] = useState(game.retroGameId ? String(game.retroGameId) : '');
   const [retroInfo, setRetroInfo] = useState<{title:string;unlocked:number;total:number;achievements:Array<{Title:string;Points:number}>}|null>(null);
+  const [igdbMetadata, setIgdbMetadata] = useState<IgdbGameMetadata | null>(null);
 
   useEffect(() => {
     setConfirmDelete(false);
     setRetroId(game.retroGameId ? String(game.retroGameId) : '');
+    setIgdbMetadata(null);
+    void fetchIgdbMetadata(game.title).then(setIgdbMetadata).catch(() => {});
   }, [game.id]);
 
   useEffect(() => { void (async()=>{ if(!game.retroGameId)return; const credentials=await loadRetroCredentials(); if(!credentials)return; try { const data=await retroRequest<any>('API_GetGameInfoAndUserProgress.php',credentials.username,credentials.key,{g:String(game.retroGameId)}); const rows=Object.values(data.Achievements||{}) as Array<any>; const earned=rows.filter((a)=>a.DateEarned||a.DateEarnedHardcore); setRetroInfo({title:data.Title,unlocked:earned.length,total:rows.length,achievements:earned.slice(0,8).map((a)=>({Title:a.Title,Points:a.Points}))}); }catch{} })(); },[game.id,game.retroGameId]);
@@ -137,6 +141,7 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
           </button>
         </div>
 
+        {igdbMetadata && <section className="mb-4 p-3 rounded-lg bg-white/5 space-y-2 text-xs text-[var(--text-secondary)]"><h3 className="font-bold text-sm text-[var(--text-primary)]">Ficha técnica · IGDB</h3>{igdbMetadata.year&&<p>Lançamento: {igdbMetadata.year}</p>}{igdbMetadata.genres.length>0&&<p>Gêneros: {igdbMetadata.genres.join(', ')}</p>}{igdbMetadata.developers.length>0&&<p>Desenvolvedora: {igdbMetadata.developers.join(', ')}</p>}{igdbMetadata.summary&&<p className="max-h-24 overflow-y-auto">{igdbMetadata.summary}</p>}{igdbMetadata.screenshots.length>0&&<div className="flex gap-2 overflow-x-auto py-1">{igdbMetadata.screenshots.map((url)=><img key={url} src={url} alt={`Captura de ${igdbMetadata.name}`} loading="lazy" className="h-20 w-auto rounded object-cover"/>)}</div>}<p className="text-[10px]">Metadados fornecidos por IGDB.</p></section>}
         <div className="mb-4 p-3 rounded-lg bg-white/5 space-y-2"><label className="block text-xs font-semibold text-[var(--text-secondary)]">GameID RetroAchievements</label><div className="flex gap-2"><input value={retroId} onChange={(e)=>setRetroId(e.target.value.replace(/\D/g,''))} inputMode="numeric" placeholder="Vincule um jogo retrô" className="theme-control min-w-0 flex-1 px-3 py-2 text-sm"/><button type="button" onClick={()=>onSaveRetroGameId(Number(retroId)||undefined)} className="theme-control px-3 py-2 text-xs font-bold text-white" style={{backgroundColor:'var(--accent)'}}>Vincular</button></div>{retroInfo&&<><p className="text-xs font-bold">{retroInfo.title}: {retroInfo.unlocked}/{retroInfo.total}</p><progress className="w-full" value={retroInfo.unlocked} max={Math.max(1,retroInfo.total)}/>{retroInfo.achievements.map(a=><p key={a.Title} className="text-xs">🏆 {a.Title} · {a.Points} pts</p>)}</>}</div>
 
         <div className="flex flex-col gap-2">

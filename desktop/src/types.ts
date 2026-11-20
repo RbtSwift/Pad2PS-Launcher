@@ -28,6 +28,7 @@ export type SystemCategory =
   | 'covers'
   | 'steam'
   | 'retro'
+  | 'igdb'
   | 'library'
   | 'power';
 

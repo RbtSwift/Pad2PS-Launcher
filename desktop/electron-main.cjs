@@ -5,6 +5,7 @@ const path = require('path');
 const os = require('os');
 const { spawn, execFile } = require('child_process');
 const DiscordRPC = require('discord-rpc');
+require('dotenv').config({ path: path.join(__dirname, '.env.local') });
 
 // Diretórios de dados e cache
 const IS_WIN = process.platform === 'win32';
@@ -20,6 +21,8 @@ try {
 const LIBRARY_CACHE = path.join(DATA_DIR, 'biblioteca.json');
 const STEAM_CREDENTIALS_FILE = path.join(DATA_DIR, 'steam-credentials.enc');
 const RETRO_CREDENTIALS_FILE = path.join(DATA_DIR, 'retro-credentials.enc');
+const IGDB_CREDENTIALS_FILE = path.join(DATA_DIR, 'igdb-credentials.enc');
+const IGDB_METADATA_CACHE_FILE = path.join(DATA_DIR, 'igdb-metadata-cache.json');
 const DISCORD_PRESENCE_FILE = path.join(DATA_DIR, 'discord-presence.json');
 const AUTOSTART_DESKTOP = path.join(USER_HOME, '.config', 'autostart', 'pad2ps-launcher.desktop');
 const DIST_DIR = path.join(__dirname, 'dist');
@@ -97,6 +100,61 @@ async function syncRetroAccount(usernameInput, keyInput) {
   const safeProfile = { username: profile.User, avatar: profile.UserPic || '', points: Number(profile.TotalPoints || 0), softcorePoints: Number(profile.TotalSoftcorePoints || 0), hardcorePoints: Number(profile.TotalTruePoints || 0), rank: Number(profile.Rank || 0) };
   saveRetroCredentials({ username: profile.User, key, profile: safeProfile });
   return safeProfile;
+}
+
+function readIgdbCredentials() {
+  try {
+    if (fs.existsSync(IGDB_CREDENTIALS_FILE) && safeStorage.isEncryptionAvailable()) return JSON.parse(safeStorage.decryptString(fs.readFileSync(IGDB_CREDENTIALS_FILE)));
+    if (process.env.IGDB_CLIENT_ID && process.env.IGDB_CLIENT_SECRET) return { clientId: process.env.IGDB_CLIENT_ID, clientSecret: process.env.IGDB_CLIENT_SECRET };
+  } catch {}
+  return null;
+}
+function saveIgdbCredentials(credentials) {
+  if (!safeStorage.isEncryptionAvailable() || (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')) throw new Error('Configure um cofre seguro (Secret Service ou KWallet) para guardar as credenciais IGDB.');
+  fs.writeFileSync(IGDB_CREDENTIALS_FILE, safeStorage.encryptString(JSON.stringify(credentials)), { mode: 0o600 });
+  try { fs.chmodSync(IGDB_CREDENTIALS_FILE, 0o600); } catch {}
+}
+function cleanIgdbTitle(title) {
+  return String(title || '').replace(/\[[^\]]*\]|\([^)]*\)/g, ' ').replace(/\b(disc|disk|cd)\s*\d+\b/gi, ' ').replace(/\s+/g, ' ').trim();
+}
+async function getIgdbToken(credentials) {
+  if (credentials.token && Number(credentials.tokenExpiresAt) > Date.now() + 60_000) return credentials.token;
+  const body = new URLSearchParams({ client_id: credentials.clientId, client_secret: credentials.clientSecret, grant_type: 'client_credentials' });
+  const response = await fetch('https://id.twitch.tv/oauth2/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+  if (!response.ok) throw new Error(`Autenticação Twitch/IGDB falhou (HTTP ${response.status}).`);
+  const token = await response.json();
+  credentials.token = token.access_token;
+  credentials.tokenExpiresAt = Date.now() + Number(token.expires_in || 0) * 1000;
+  saveIgdbCredentials(credentials);
+  return credentials.token;
+}
+function readIgdbMetadataCache() { try { return JSON.parse(fs.readFileSync(IGDB_METADATA_CACHE_FILE, 'utf8')); } catch { return {}; } }
+async function getIgdbGameMetadata(titleInput, { refresh = false } = {}) {
+  const title = cleanIgdbTitle(titleInput);
+  if (!title) throw new Error('Título do jogo vazio.');
+  const cache = readIgdbMetadataCache();
+  const cacheKey = title.toLocaleLowerCase();
+  if (!refresh && cache[cacheKey]) return cache[cacheKey];
+  const credentials = readIgdbCredentials();
+  if (!credentials?.clientId || !credentials?.clientSecret) throw new Error('Configure Client ID e Client Secret da IGDB nas Configurações.');
+  const token = await getIgdbToken(credentials);
+  const query = `fields name,summary,first_release_date,genres.name,involved_companies.company.name,involved_companies.developer,screenshots.image_id,rating; search "${title.replace(/["\\]/g, ' ')}"; limit 3;`;
+  const response = await fetch('https://api.igdb.com/v4/games', { method: 'POST', headers: { 'Client-ID': credentials.clientId, Authorization: `Bearer ${token}`, 'Content-Type': 'text/plain' }, body: query });
+  if (!response.ok) throw new Error(`IGDB respondeu HTTP ${response.status}.`);
+  const rows = await response.json();
+  const game = Array.isArray(rows) ? rows[0] : null;
+  if (!game) throw new Error('Nenhum resultado encontrado na IGDB.');
+  const data = {
+    id: game.id, name: game.name || title, summary: game.summary || '',
+    year: game.first_release_date ? new Date(game.first_release_date * 1000).getUTCFullYear() : null,
+    genres: Array.isArray(game.genres) ? game.genres.map((genre) => genre.name).filter(Boolean) : [],
+    developers: Array.isArray(game.involved_companies) ? game.involved_companies.filter((company) => company.developer).map((company) => company.company?.name).filter(Boolean) : [],
+    screenshots: Array.isArray(game.screenshots) ? game.screenshots.map((shot) => `https://images.igdb.com/igdb/image/upload/t_screenshot_big/${shot.image_id}.jpg`).filter(Boolean).slice(0, 5) : [],
+    rating: game.rating || null,
+  };
+  cache[cacheKey] = data;
+  fs.writeFileSync(IGDB_METADATA_CACHE_FILE, JSON.stringify(cache), { mode: 0o600 });
+  return data;
 }
 
 function parseSteamProfileInput(input) {
@@ -919,6 +977,34 @@ function startHttpServer() {
       if (req.method === 'GET' && pathname === '/api/retro/config') {
         const credentials = readRetroCredentials();
         return sendJson({ configured: Boolean(credentials?.username), username: credentials?.username || '', profile: credentials?.profile || null });
+      }
+      if (req.method === 'GET' && pathname === '/api/igdb/config') {
+        const credentials = readIgdbCredentials();
+        return sendJson({ configured: Boolean(credentials?.clientId && credentials?.clientSecret), clientId: credentials?.clientId || '' });
+      }
+      if (req.method === 'POST' && pathname === '/api/igdb/config') {
+        void readJsonBody().then(async (body) => {
+          const existing = readIgdbCredentials();
+          const clientId = String(body.clientId || process.env.IGDB_CLIENT_ID || existing?.clientId || '').trim();
+          const clientSecret = String(body.clientSecret || process.env.IGDB_CLIENT_SECRET || existing?.clientSecret || '').trim();
+          if (!clientId || !clientSecret) throw new Error('Informe Client ID e Client Secret.');
+          saveIgdbCredentials({ clientId, clientSecret });
+          const credentials = readIgdbCredentials();
+          await getIgdbToken(credentials);
+          return sendJson({ configured: true });
+        }).catch((error) => sendJson({ error: error.message || 'Não foi possível validar as credenciais IGDB.' }, 400));
+        return;
+      }
+      if (req.method === 'POST' && pathname === '/api/igdb/disconnect') {
+        try { if (fs.existsSync(IGDB_CREDENTIALS_FILE)) fs.unlinkSync(IGDB_CREDENTIALS_FILE); } catch {}
+        try { if (fs.existsSync(IGDB_METADATA_CACHE_FILE)) fs.unlinkSync(IGDB_METADATA_CACHE_FILE); } catch {}
+        return sendJson({ ok: true });
+      }
+      if (req.method === 'GET' && pathname === '/api/igdb/game') {
+        const title = url.searchParams.get('title') || '';
+        const refresh = url.searchParams.get('refresh') === '1';
+        void getIgdbGameMetadata(title, { refresh }).then((data) => sendJson({ available: true, data })).catch((error) => sendJson({ available: false, reason: error.message || 'Metadados IGDB indisponíveis.' }));
+        return;
       }
       if (req.method === 'POST' && pathname === '/api/retro/sync') {
         void readJsonBody().then((body) => syncRetroAccount(body.username, body.key)).then((data) => sendJson(data)).catch((error) => sendJson({ error: error.message || 'Não foi possível conectar ao RetroAchievements.' }, 400));

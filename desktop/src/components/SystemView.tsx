@@ -122,6 +122,7 @@ const CATEGORIES: {
   { id: 'covers', label: 'Capas & API SteamGridDB', icon: ImageIcon },
   { id: 'steam', label: 'Integração Steam (Opcional)', icon: Link2 },
   { id: 'retro', label: 'Integração RetroAchievements (Opcional)', icon: BadgeCheck },
+  { id: 'igdb', label: 'Metadados IGDB (Opcional)', icon: Images },
   { id: 'library', label: 'Biblioteca & Dados', icon: Library },
   { id: 'power', label: 'Energia & Web Pad2PS', icon: Power },
 ];
@@ -342,6 +343,12 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
     const [retroBusy, setRetroBusy] = useState(false);
     const [retroFeedback, setRetroFeedback] = useState('');
     const [retroProfile, setRetroProfile] = useState<{username:string;avatar:string;points:number;softcorePoints:number;hardcorePoints:number;rank:number}|null>(null);
+    const [igdbClientId, setIgdbClientId] = useState('');
+    const [igdbClientSecret, setIgdbClientSecret] = useState('');
+    const [igdbShowSecret, setIgdbShowSecret] = useState(false);
+    const [igdbBusy, setIgdbBusy] = useState(false);
+    const [igdbConfigured, setIgdbConfigured] = useState(false);
+    const [igdbFeedback, setIgdbFeedback] = useState('');
 
     useEffect(() => {
       fetch('/api/steam/config')
@@ -411,6 +418,18 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
     useEffect(() => {
       fetch('/api/retro/config').then((r) => r.ok ? r.json() : null).then((data) => { if (data?.configured) { setRetroUsername(data.username || ''); setRetroProfile(data.profile || null); } }).catch(() => {});
     }, []);
+
+    useEffect(() => { fetch('/api/igdb/config').then((r) => r.ok ? r.json() : null).then((data) => { setIgdbConfigured(Boolean(data?.configured)); if (data?.clientId) setIgdbClientId(String(data.clientId)); }).catch(() => {}); }, []);
+    const handleIgdbSave = async () => {
+      setIgdbBusy(true); setIgdbFeedback('Validando e protegendo as credenciais…');
+      try {
+        const response = await fetch('/api/igdb/config', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({clientId: igdbClientId, clientSecret: igdbClientSecret}) });
+        const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Credenciais inválidas.');
+        setIgdbConfigured(true); setIgdbClientSecret(''); setIgdbFeedback('IGDB conectada. Credenciais e token protegidos no cofre deste computador.');
+      } catch (error) { setIgdbFeedback(error instanceof Error ? error.message : 'Não foi possível conectar à IGDB.'); }
+      finally { setIgdbBusy(false); }
+    };
+    const handleIgdbClear = async () => { setIgdbBusy(true); try { await fetch('/api/igdb/disconnect', {method:'POST'}); setIgdbConfigured(false); setIgdbClientId(''); setIgdbClientSecret(''); setIgdbFeedback('Credenciais e cache IGDB removidos deste computador.'); } finally { setIgdbBusy(false); } };
 
     useEffect(() => {
       fetch('/api/discord/config').then((r) => r.ok ? r.json() : null).then((data) => {
@@ -504,6 +523,8 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
         case 'steam':
           return 2; // Connect/sync and disconnect
         case 'retro':
+          return 2;
+        case 'igdb':
           return 2;
         case 'library':
           return 4; // Add, Export, Import, Reset
@@ -775,6 +796,10 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
       }
       if (activeCategory === 'retro') {
         if (idx === 0) void handleRetroSync(); else void handleRetroDisconnect();
+        return;
+      }
+      if (activeCategory === 'igdb') {
+        if (idx === 0) void handleIgdbSave(); else void handleIgdbClear();
         return;
       }
       if (activeCategory === 'library') {
@@ -2108,6 +2133,18 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                 <label className="block text-sm font-bold text-[var(--text-primary)]">RetroAchievements Web API Key<div className="flex gap-2 mt-1"><input type={retroShowKey?'text':'password'} value={retroKey} onChange={(event)=>setRetroKey(event.target.value)} placeholder={retroProfile?'Chave protegida e salva neste computador':'Cole sua chave pessoal'} className="theme-control min-w-0 flex-1 px-3 py-2 border font-mono-tech text-sm" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}/><button type="button" onClick={()=>setRetroShowKey((v)=>!v)} className="theme-control px-3 border" style={{borderColor:'var(--border-subtle)'}}>{retroShowKey?<EyeOff className="w-4 h-4"/>:<Eye className="w-4 h-4"/>}</button></div></label>
                 <div className="flex flex-wrap gap-2"><button ref={(el)=>{contentRefs.current[0]=el;}} type="button" disabled={retroBusy} onClick={()=>void handleRetroSync()} className="theme-control px-4 py-2.5 font-bold text-white" style={{backgroundColor:'var(--accent)'}}>{retroBusy?'Validando…':'Testar e Sincronizar'}</button><button ref={(el)=>{contentRefs.current[1]=el;}} type="button" disabled={!retroProfile} onClick={()=>void handleRetroDisconnect()} className="theme-control px-4 py-2.5 border text-[var(--text-secondary)]" style={{borderColor:'var(--border-subtle)'}}>Desconectar / Limpar Dados</button></div>
                 {retroFeedback && <p role="status" className="text-sm text-[var(--text-secondary)]">{retroFeedback}</p>}
+              </div>
+            )}
+
+            {activeCategory === 'igdb' && (
+              <div className="space-y-4 max-w-3xl">
+                <div><h2 className="font-display text-xl lg:text-2xl font-extrabold text-[var(--text-primary)]">Metadados IGDB (Opcional)</h2><p className="text-sm text-[var(--text-secondary)] mt-1">Sinopses, ano, gêneros, desenvolvedora e imagens para jogos da sua biblioteca.</p></div>
+                <div className="theme-control p-4 border space-y-2 text-sm text-[var(--text-secondary)]" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}><p>No <a className="underline" href="https://dev.twitch.tv/console/apps" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>Console de Desenvolvedores da Twitch</a>, registre uma aplicação como <strong>Confidential</strong>, use <code>localhost</code> como redirect URL se solicitado e copie o Client ID e Client Secret.</p><p>O launcher consulta a IGDB pelo Electron, sem proxy ou servidor externo do Pad2PS. Client ID e Client Secret ficam criptografados no cofre deste computador; token OAuth e fichas são guardados em cache local.</p></div>
+                <label className="block text-sm font-bold text-[var(--text-primary)]">IGDB Client ID<input value={igdbClientId} onChange={(event)=>setIgdbClientId(event.target.value)} placeholder={igdbConfigured?'Credencial já protegida neste computador':'Cole seu Client ID'} className="theme-control w-full mt-1 px-3 py-2 border font-mono-tech text-sm" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}/></label>
+                <label className="block text-sm font-bold text-[var(--text-primary)]">IGDB Client Secret<div className="flex gap-2 mt-1"><input type={igdbShowSecret?'text':'password'} value={igdbClientSecret} onChange={(event)=>setIgdbClientSecret(event.target.value)} placeholder={igdbConfigured?'Segredo já protegido neste computador':'Cole seu Client Secret'} className="theme-control min-w-0 flex-1 px-3 py-2 border font-mono-tech text-sm" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}/><button type="button" onClick={()=>setIgdbShowSecret((value)=>!value)} className="theme-control px-3 border" style={{borderColor:'var(--border-subtle)'}}>{igdbShowSecret?<EyeOff className="w-4 h-4"/>:<Eye className="w-4 h-4"/>}</button></div></label>
+                <div className="flex flex-wrap gap-2"><button ref={(el)=>{contentRefs.current[0]=el;}} type="button" disabled={igdbBusy} onClick={()=>void handleIgdbSave()} className="theme-control px-4 py-2.5 font-bold text-white disabled:opacity-50" style={{backgroundColor:'var(--accent)'}}>{igdbBusy?'Validando…':'Testar e Salvar'}</button><button ref={(el)=>{contentRefs.current[1]=el;}} type="button" disabled={igdbBusy||!igdbConfigured} onClick={()=>void handleIgdbClear()} className="theme-control px-4 py-2.5 border text-[var(--text-secondary)] disabled:opacity-50" style={{borderColor:'var(--border-subtle)'}}>Desconectar / Limpar Cache</button></div>
+                {igdbFeedback && <p role="status" className="text-sm text-[var(--text-secondary)]">{igdbFeedback}</p>}
+                <p className="text-xs text-[var(--text-secondary)]">Metadados fornecidos por <a className="underline" href="https://www.igdb.com" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>IGDB</a>.</p>
               </div>
             )}
 

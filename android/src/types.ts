@@ -28,6 +28,7 @@ export type SystemCategory =
   | 'controller'
   | 'covers'
   | 'retro'
+  | 'igdb'
   | 'library'
   | 'power';
 

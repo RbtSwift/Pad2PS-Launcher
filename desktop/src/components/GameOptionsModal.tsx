@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Edit3, Filter, Heart, Play, Search, Trash2, X } from 'lucide-react';
 import { Game, LibraryPlatformFilter } from '../types';
 import { CancelButtonIcon, ConfirmButtonIcon } from './ControllerIcons';
+import { fetchIgdbMetadata, type IgdbGameMetadata } from '../utils/igdb';
 
 interface GameOptionsModalProps {
   game: Game;
@@ -36,11 +37,14 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
   const [achievements, setAchievements] = useState<{ unlocked: number; total: number; percentage: number } | null>(null);
   const [retroProgress, setRetroProgress] = useState<{ title?: string; total: number; unlocked: number; achievements: Array<{ title: string; description: string; points: number }> } | null>(null);
   const [retroIdInput, setRetroIdInput] = useState(game.retroGameId ? String(game.retroGameId) : '');
+  const [igdbMetadata, setIgdbMetadata] = useState<IgdbGameMetadata | null>(null);
 
   useEffect(() => {
     setConfirmDelete(false);
     setAchievements(null);
     setRetroIdInput(game.retroGameId ? String(game.retroGameId) : '');
+    setIgdbMetadata(null);
+    void fetchIgdbMetadata(game.title).then(setIgdbMetadata).catch(() => {});
     const appId = Number(game.steamAppId || game.command.match(/steam:\/\/(?:rungameid|install)\/(\d+)/i)?.[1]);
     if (!appId || game.steamRemote) return;
     fetch(`/api/steam/achievements?appId=${appId}`)
@@ -154,6 +158,7 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
         </div>
 
         {game.steamLogoUrl && <img src={game.steamLogoUrl} alt={`${game.title} logo`} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="max-h-14 max-w-[70%] object-contain mb-3" />}
+        {igdbMetadata && <section className="mb-4 p-3 rounded-lg bg-white/5 space-y-2 text-xs text-[var(--text-secondary)]"><h3 className="font-bold text-sm text-[var(--text-primary)]">Ficha técnica · IGDB</h3>{igdbMetadata.year && <p>Lançamento: {igdbMetadata.year}</p>}{igdbMetadata.genres.length > 0 && <p>Gêneros: {igdbMetadata.genres.join(', ')}</p>}{igdbMetadata.developers.length > 0 && <p>Desenvolvedora: {igdbMetadata.developers.join(', ')}</p>}{igdbMetadata.summary && <p className="max-h-24 overflow-y-auto">{igdbMetadata.summary}</p>}{igdbMetadata.screenshots.length > 0 && <div className="flex gap-2 overflow-x-auto py-1">{igdbMetadata.screenshots.map((url) => <img key={url} src={url} alt={`Captura de ${igdbMetadata.name}`} loading="lazy" className="h-20 w-auto rounded object-cover" />)}</div>}<p className="text-[10px]">Metadados fornecidos por IGDB.</p></section>}
         {(typeof game.steamPlaytimeHours === 'number' || achievements) && (
           <div className="mb-4 p-3 rounded-lg bg-white/5 text-xs text-[var(--text-secondary)] space-y-1">
             {typeof game.steamPlaytimeHours === 'number' && <p>{game.steamPlaytimeHours.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h jogadas na Steam{game.steamRecentlyPlayed ? ' · jogado nas últimas 2 semanas' : ''}</p>}

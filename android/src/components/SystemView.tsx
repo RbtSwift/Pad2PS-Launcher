@@ -66,6 +66,7 @@ import {
   saveStoredSteamGridDbKey,
 } from '../utils/coverSearch';
 import { clearRetroCredentials, loadRetroCredentials, retroRequest, storeRetroCredentials, type RetroProfile } from '../utils/retroAchievements';
+import { clearIgdbCredentials, igdbConfig, saveIgdbCredentials } from '../utils/igdb';
 import {
   formatGamepadButtonName,
   REMAPPABLE_ACTIONS_META,
@@ -121,6 +122,7 @@ const CATEGORIES: {
   { id: 'controller', label: 'Controle & Atalhos', icon: Gamepad2 },
   { id: 'covers', label: 'Capas & API SteamGridDB', icon: ImageIcon },
   { id: 'retro', label: 'Integração RetroAchievements (Opcional)', icon: BadgeCheck },
+  { id: 'igdb', label: 'Metadados IGDB (Opcional)', icon: Images },
   { id: 'library', label: 'Biblioteca & Dados', icon: Library },
   { id: 'power', label: 'Energia & Web Pad2PS', icon: Power },
 ];
@@ -328,6 +330,12 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
     const [retroBusy, setRetroBusy] = useState(false);
     const [retroFeedback, setRetroFeedback] = useState('');
     const [retroProfile, setRetroProfile] = useState<RetroProfile | null>(null);
+    const [igdbClientId, setIgdbClientId] = useState('');
+    const [igdbClientSecret, setIgdbClientSecret] = useState('');
+    const [igdbShowSecret, setIgdbShowSecret] = useState(false);
+    const [igdbBusy, setIgdbBusy] = useState(false);
+    const [igdbConfigured, setIgdbConfigured] = useState(false);
+    const [igdbFeedback, setIgdbFeedback] = useState('');
 
     useEffect(() => {
       void loadRetroCredentials().then(async (credentials) => {
@@ -337,6 +345,15 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
         catch { setRetroFeedback('Credenciais salvas localmente; reconecte para atualizar os dados.'); }
       });
     }, []);
+
+    useEffect(() => { void igdbConfig().then((config) => { setIgdbConfigured(config.configured); setIgdbClientId(config.clientId || ''); }).catch(() => {}); }, []);
+    const handleIgdbSave = async () => {
+      setIgdbBusy(true); setIgdbFeedback('Validando e protegendo as credenciais…');
+      try { await saveIgdbCredentials(igdbClientId, igdbClientSecret); setIgdbConfigured(true); setIgdbClientSecret(''); setIgdbFeedback('IGDB conectada. Credenciais e token protegidos pelo Android Keystore.'); }
+      catch (error) { setIgdbFeedback(error instanceof Error ? error.message : 'Não foi possível validar as credenciais IGDB.'); }
+      finally { setIgdbBusy(false); }
+    };
+    const handleIgdbClear = async () => { setIgdbBusy(true); try { await clearIgdbCredentials(); setIgdbConfigured(false); setIgdbClientId(''); setIgdbClientSecret(''); setIgdbFeedback('Credenciais e cache IGDB removidos deste dispositivo.'); } finally { setIgdbBusy(false); } };
 
     const handleRetroSync = async () => {
       setRetroBusy(true); setRetroFeedback('Validando direto no RetroAchievements…');
@@ -434,6 +451,8 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
         case 'covers':
           return 2; // Save key + Clear key
         case 'retro':
+          return 2;
+        case 'igdb':
           return 2;
         case 'library':
           return isAndroidNative() ? 6 : 4; // Add, Export, Import, Reset (+ Android ROMs/Rescan)
@@ -681,6 +700,7 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
         if (idx === 0) void handleRetroSync(); else void handleRetroDisconnect();
         return;
       }
+      if (activeCategory === 'igdb') { if (idx === 0) void handleIgdbSave(); else void handleIgdbClear(); return; }
       if (activeCategory === 'library') {
         if (idx === 0) onAddGame();
         else if (idx === 1) {
@@ -1963,6 +1983,18 @@ export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
                 <label className="block text-sm font-bold">RetroAchievements Web API Key<div className="flex gap-2 mt-1"><input type={retroShowKey?'text':'password'} value={retroKey} onChange={(e)=>setRetroKey(e.target.value)} placeholder={retroProfile?'Chave protegida neste dispositivo':'Cole sua chave pessoal'} className="theme-control min-w-0 flex-1 px-3 py-2 border font-mono-tech" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}/><button type="button" onClick={()=>setRetroShowKey((v)=>!v)} className="theme-control px-3 border" style={{borderColor:'var(--border-subtle)'}}>{retroShowKey?<EyeOff className="w-4 h-4"/>:<Eye className="w-4 h-4"/>}</button></div></label>
                 <div className="flex gap-2"><button ref={(el)=>{contentRefs.current[0]=el;}} type="button" disabled={retroBusy} onClick={()=>void handleRetroSync()} className="theme-control px-4 py-2.5 font-bold text-white" style={{backgroundColor:'var(--accent)'}}>{retroBusy?'Validando…':'Testar e Sincronizar'}</button><button ref={(el)=>{contentRefs.current[1]=el;}} type="button" disabled={!retroProfile} onClick={()=>void handleRetroDisconnect()} className="theme-control px-4 py-2.5 border" style={{borderColor:'var(--border-subtle)'}}>Desconectar / Limpar Dados</button></div>
                 {retroFeedback&&<p role="status" className="text-sm text-[var(--text-secondary)]">{retroFeedback}</p>}
+              </div>
+            )}
+
+            {activeCategory === 'igdb' && (
+              <div className="space-y-4 max-w-3xl">
+                <div><h2 className="font-display text-xl font-extrabold text-[var(--text-primary)]">Metadados IGDB (Opcional)</h2><p className="text-sm text-[var(--text-secondary)] mt-1">Sinopses, ano, gêneros, desenvolvedora e imagens para os jogos.</p></div>
+                <div className="theme-control p-4 border space-y-2 text-sm text-[var(--text-secondary)]" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}><p>No <a className="underline" href="https://dev.twitch.tv/console/apps" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>Console de Desenvolvedores da Twitch</a>, registre uma aplicação como <strong>Confidential</strong>, use <code>localhost</code> como redirect URL se solicitado e copie o Client ID e Client Secret.</p><p>As credenciais ficam criptografadas no Android Keystore. Chamadas IGDB usam a camada nativa, sem servidor externo do Pad2PS; token e fichas ficam em cache local.</p></div>
+                <label className="block text-sm font-bold">IGDB Client ID<input value={igdbClientId} onChange={(event)=>setIgdbClientId(event.target.value)} placeholder={igdbConfigured?'Credencial já protegida neste aparelho':'Cole seu Client ID'} className="theme-control w-full mt-1 px-3 py-2 border font-mono-tech" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}/></label>
+                <label className="block text-sm font-bold">IGDB Client Secret<div className="flex gap-2 mt-1"><input type={igdbShowSecret?'text':'password'} value={igdbClientSecret} onChange={(event)=>setIgdbClientSecret(event.target.value)} placeholder={igdbConfigured?'Segredo já protegido neste aparelho':'Cole seu Client Secret'} className="theme-control min-w-0 flex-1 px-3 py-2 border font-mono-tech" style={{backgroundColor:'var(--bg-deep)',borderColor:'var(--border-subtle)'}}/><button type="button" onClick={()=>setIgdbShowSecret((value)=>!value)} className="theme-control px-3 border" style={{borderColor:'var(--border-subtle)'}}>{igdbShowSecret?<EyeOff className="w-4 h-4"/>:<Eye className="w-4 h-4"/>}</button></div></label>
+                <div className="flex flex-wrap gap-2"><button ref={(el)=>{contentRefs.current[0]=el;}} type="button" disabled={igdbBusy} onClick={()=>void handleIgdbSave()} className="theme-control px-4 py-2.5 font-bold text-white disabled:opacity-50" style={{backgroundColor:'var(--accent)'}}>{igdbBusy?'Validando…':'Testar e Salvar'}</button><button ref={(el)=>{contentRefs.current[1]=el;}} type="button" disabled={igdbBusy||!igdbConfigured} onClick={()=>void handleIgdbClear()} className="theme-control px-4 py-2.5 border disabled:opacity-50" style={{borderColor:'var(--border-subtle)'}}>Desconectar / Limpar Cache</button></div>
+                {igdbFeedback&&<p role="status" className="text-sm text-[var(--text-secondary)]">{igdbFeedback}</p>}
+                <p className="text-xs text-[var(--text-secondary)]">Metadados fornecidos por <a className="underline" href="https://www.igdb.com" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>IGDB</a>.</p>
               </div>
             )}
 
