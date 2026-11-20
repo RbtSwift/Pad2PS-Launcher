@@ -1,0 +1,5 @@
+Pad2PS Launcher helps you organize and launch games and emulators available on your Android device. Find installed games, add game or ROM folders you choose, and browse your library with touch or a controller.
+
+Customize the look with themes, organize your collection, and find game artwork and information through optional third-party integrations. Feature availability depends on your device, games, and configured services.
+
+The app is free and has no ads. Pad2PS Launcher has no first-party data-collection or telemetry servers. Your library, preferences, and credentials stay on your device. When you use integrations or WebDAV sync, the required requests or files are sent directly to the services you choose and are subject to their policies.

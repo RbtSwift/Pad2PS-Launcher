@@ -1,0 +1,5 @@
+Pad2PS Launcher é um aplicativo para organizar e iniciar jogos e emuladores disponíveis no seu dispositivo Android. Encontre jogos instalados, adicione pastas de jogos e ROMs escolhidas por você e navegue pela biblioteca usando toque ou controle.
+
+Personalize a aparência com temas, organize sua coleção e encontre capas e informações de jogos por meio de integrações opcionais com serviços externos. A disponibilidade dos recursos depende do dispositivo, dos jogos e dos serviços configurados.
+
+O aplicativo é gratuito e não exibe anúncios. O Pad2PS Launcher não possui servidores próprios de coleta de dados ou telemetria. Sua biblioteca, preferências e credenciais permanecem no dispositivo. Quando você usa integrações ou sincronização WebDAV, as solicitações ou arquivos necessários são enviados diretamente aos serviços que escolheu, sujeitos às políticas desses serviços.

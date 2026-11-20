@@ -1,0 +1,3 @@
+Corrige a correspondência de metadados pelo Steam AppID, com busca exata e dados da Steam como alternativa.
+Restringe buscas por nome a títulos correspondentes.
+Permite atualizar metadados incorretos já salvos no cache local.

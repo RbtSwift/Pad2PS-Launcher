@@ -1,0 +1,3 @@
+Fixes metadata matching by Steam AppID, with exact matching and Steam data as a fallback.
+Restricts title searches to matching titles.
+Lets you refresh incorrect metadata already stored in the local cache.
