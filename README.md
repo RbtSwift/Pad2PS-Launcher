@@ -33,6 +33,15 @@ Pad2PS-Launcher/
 
 ---
 
+## 📥 Download
+
+- **Obtainium:** [Adicionar Pad2PS Launcher ao Obtainium](https://apps.obtainium.imranr.dev/redirect.html?r=obtainium://add/https://github.com/RbtSwift/Pad2PS-Launcher)
+- **GitHub Releases:** [Baixar a versão mais recente](https://github.com/RbtSwift/Pad2PS-Launcher/releases)
+
+Pad2PS e Pad2PS Launcher estão em revisão para publicação no repositório **IzzyOnDroid**.
+
+---
+
 ## 🚀 Como Compilar Localmente
 
 ### Desktop (`desktop/`)
