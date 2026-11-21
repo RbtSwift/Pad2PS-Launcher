@@ -2,8 +2,6 @@ app-id: io.github.rbtswift.Pad2PSLauncher
 runtime: org.freedesktop.Platform
 runtime-version: '25.08'
 sdk: org.freedesktop.Sdk
-sdk-extensions:
-  - org.freedesktop.Sdk.Extension.node22
 command: pad2ps-launcher
 finish-args:
   - --share=ipc
@@ -17,39 +15,32 @@ finish-args:
 modules:
   - name: pad2ps-launcher
     buildsystem: simple
-    build-options:
-      append-path: /usr/lib/sdk/node22/bin
-      env:
-        ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     build-commands:
-      - >-
-        cd source/desktop &&
-        npm ci --offline --cache "$FLATPAK_BUILDER_BUILDDIR/flatpak-node/cache" &&
-        npm run build &&
-        npx electron-builder --linux dir --publish never
-        --config.electronDist="$FLATPAK_BUILDER_BUILDDIR/electron-dist" &&
-        install -d /app/opt/Pad2PS-Launcher &&
-        cp -a release/linux-unpacked/. /app/opt/Pad2PS-Launcher/ &&
-        install -Dm755 pad2ps-launcher-flatpak.sh /app/bin/pad2ps-launcher &&
-        install -Dm644 icon-256.png /app/share/icons/hicolor/256x256/apps/io.github.rbtswift.Pad2PSLauncher.png &&
-        install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/io.github.rbtswift.Pad2PSLauncher.png &&
-        install -Dm644 pad2ps-launcher.desktop /app/share/applications/pad2ps-launcher.desktop &&
-        install -Dm644 io.github.rbtswift.Pad2PSLauncher.metainfo.xml /app/share/metainfo/io.github.rbtswift.Pad2PSLauncher.metainfo.xml
+      - mkdir -p /app/opt/Pad2PS-Launcher /app/bin
+      - cp -a linux-unpacked/. /app/opt/Pad2PS-Launcher/
+      - chmod 755 /app/opt/Pad2PS-Launcher/pad2ps-launcher
+      - install -Dm755 pad2ps-launcher-flatpak.sh /app/bin/pad2ps-launcher
+      - install -Dm644 icon-256.png /app/share/icons/hicolor/256x256/apps/io.github.rbtswift.Pad2PSLauncher.png
+      - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/io.github.rbtswift.Pad2PSLauncher.png
+      - install -Dm644 pad2ps-launcher.desktop /app/share/applications/pad2ps-launcher.desktop
+      - install -Dm644 io.github.rbtswift.Pad2PSLauncher.metainfo.xml /app/share/metainfo/io.github.rbtswift.Pad2PSLauncher.metainfo.xml
     sources:
-      - type: git
-        url: https://github.com/RbtSwift/Pad2PS-Launcher.git
-        tag: v1.0.19
-        commit: f460ff47da316b315583012dd8add743805c44d7
-        dest: source
+      - type: archive
+        url: https://github.com/RbtSwift/Pad2PS-Launcher/releases/download/v1.0.19/Pad2PS-Launcher-1.0.19-x86_64.tar.gz
+        sha256: 2df034b3301504fb7283c868a6ae3860ce5a1431747fbf2fe52ccfbe63499532
+        dest: linux-unpacked
         x-checker-data:
           type: github
           repo: RbtSwift/Pad2PS-Launcher
-          tag-pattern: '^v([0-9]+\.[0-9]+\.[0-9]+)$'
-          is-main-source: true
-      - desktop/generated-sources.json
-      - type: archive
-        url: https://github.com/electron/electron/releases/download/v45.3.4/electron-v45.3.4-linux-x64.zip
-        sha256: 696689916f56fc12dd3085527351751ff0845c37eda45df420fc0d7aecc841f3
-        dest: electron-dist
-        only-arches:
-          - x86_64
+          tag-pattern: '^v([0-9.]+)$'
+          asset-name: 'Pad2PS-Launcher-$version-x86_64.tar.gz'
+      - type: file
+        path: pad2ps-launcher-flatpak.sh
+      - type: file
+        path: icon-256.png
+      - type: file
+        path: icon.png
+      - type: file
+        path: pad2ps-launcher.desktop
+      - type: file
+        path: io.github.rbtswift.Pad2PSLauncher.metainfo.xml
