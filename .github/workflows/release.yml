@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Tag da release existente ou planejada (ex.: v1.0.19)"
+        description: "Tag da release existente à qual o Flatpak será anexado"
         required: true
         type: string
 
@@ -16,6 +16,7 @@ permissions:
 
 jobs:
   build-linux:
+    if: ${{ github.event_name == 'push' }}
     name: Desktop Linux (.AppImage, .deb, .rpm, .tar.gz, .flatpak)
     runs-on: ubuntu-latest
     steps:
@@ -141,7 +142,60 @@ jobs:
           name: linux-artifacts
           path: desktop/artifacts/*
 
+  build-flatpak-dispatch:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    name: Build and attach Flatpak
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Validate release manifest
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+(\.[0-9]+)*$ ]]; then
+            echo "Invalid release tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          VERSION="${RELEASE_TAG#v}"
+          python3 - "desktop/io.github.rbtswift.Pad2PSLauncher.yml" "$RELEASE_TAG" "$VERSION" <<'PY'
+          import pathlib
+          import re
+          import sys
+
+          manifest, tag, version = sys.argv[1:]
+          content = pathlib.Path(manifest).read_text()
+          expected_url = (
+              f"https://github.com/RbtSwift/Pad2PS-Launcher/releases/download/{tag}/"
+              f"Pad2PS-Launcher-{version}-x86_64.tar.gz"
+          )
+          if expected_url not in content or not re.search(
+              r"(?m)^\s+sha256:\s*[0-9a-f]{64}\s*$", content
+          ):
+              raise SystemExit(
+                  f"Manifest is not pinned to the release tarball for {tag}"
+              )
+          PY
+
+      - name: Build and upload Flatpak
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --noninteractive flathub org.freedesktop.Platform//25.08 org.freedesktop.Sdk//25.08
+          VERSION="${RELEASE_TAG#v}"
+          mkdir -p artifacts
+          flatpak-builder --user --force-clean --default-branch=stable --repo=flatpak-repo flatpak-build desktop/io.github.rbtswift.Pad2PSLauncher.yml
+          flatpak build-bundle --user --arch=x86_64 flatpak-repo "artifacts/Pad2PS-Launcher-${VERSION}-x86_64.flatpak" io.github.rbtswift.Pad2PSLauncher stable
+          gh release upload "$RELEASE_TAG" "artifacts/Pad2PS-Launcher-${VERSION}-x86_64.flatpak" --clobber
+
   build-windows:
+    if: ${{ github.event_name == 'push' }}
     name: Desktop Windows (.exe Setup & Portable)
     runs-on: windows-latest
     steps:
@@ -176,7 +230,7 @@ jobs:
             desktop/release/*Portable*.exe
 
   build-android:
-    if: ${{ vars.ANDROID_SIGNING_ENABLED == 'true' }}
+    if: ${{ github.event_name == 'push' && vars.ANDROID_SIGNING_ENABLED == 'true' }}
     name: Android (.apk & .aab)
     runs-on: ubuntu-latest
     steps:
@@ -225,7 +279,7 @@ jobs:
           path: android/artifacts/*
 
   publish-release:
-    if: ${{ always() && needs.build-linux.result == 'success' && needs.build-windows.result == 'success' && (needs.build-android.result == 'success' || needs.build-android.result == 'skipped') }}
+    if: ${{ github.event_name == 'push' && always() && needs.build-linux.result == 'success' && needs.build-windows.result == 'success' && (needs.build-android.result == 'success' || needs.build-android.result == 'skipped') }}
     name: Publicar GitHub Release
     needs: [build-linux, build-windows, build-android]
     runs-on: ubuntu-latest
