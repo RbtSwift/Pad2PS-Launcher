@@ -191,7 +191,7 @@ jobs:
           VERSION="${RELEASE_TAG#v}"
           mkdir -p artifacts
           flatpak-builder --user --force-clean --default-branch=stable --repo=flatpak-repo flatpak-build desktop/io.github.rbtswift.Pad2PSLauncher.yml
-          flatpak build-bundle --user --arch=x86_64 flatpak-repo "artifacts/Pad2PS-Launcher-${VERSION}-x86_64.flatpak" io.github.rbtswift.Pad2PSLauncher stable
+          flatpak build-bundle --arch=x86_64 flatpak-repo "artifacts/Pad2PS-Launcher-${VERSION}-x86_64.flatpak" io.github.rbtswift.Pad2PSLauncher stable
           gh release upload "$RELEASE_TAG" "artifacts/Pad2PS-Launcher-${VERSION}-x86_64.flatpak" --clobber
 
   build-windows:
