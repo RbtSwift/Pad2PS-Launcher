@@ -6,7 +6,7 @@
 
 **Central de jogos estilo console para PC e Android, com navegação 100% por controle.**
 
-[![Versão](https://img.shields.io/badge/vers%C3%A3o-1.0.19-EC4899?style=flat-square)](https://github.com/RbtSwift/Pad2PS-Launcher/releases/latest)
+[![Versão](https://img.shields.io/badge/vers%C3%A3o-1.0.20-EC4899?style=flat-square)](https://github.com/RbtSwift/Pad2PS-Launcher/releases/latest)
 [![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-A855F7?style=flat-square)](LICENSE)
 [![Plataformas](https://img.shields.io/badge/plataformas-Linux%20%C2%B7%20Windows%20%C2%B7%20Android-121218?style=flat-square)](#-português)
 [![Portal](https://img.shields.io/badge/portal-pad2ps.com.br-F472B6?style=flat-square)](https://pad2ps.com.br/launcher)

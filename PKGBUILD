@@ -1,5 +1,5 @@
 pkgname=pad2ps-launcher-bin
-pkgver=1.0.19
+pkgver=1.0.20
 pkgrel=1
 pkgdesc='Console-style game launcher for Linux with full gamepad navigation'
 arch=('x86_64')

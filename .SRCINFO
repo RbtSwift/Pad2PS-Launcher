@@ -1,6 +1,6 @@
 pkgbase = pad2ps-launcher-bin
 	pkgdesc = Console-style game launcher for Linux with full gamepad navigation
-	pkgver = 1.0.19
+	pkgver = 1.0.20
 	pkgrel = 1
 	url = https://github.com/RbtSwift/Pad2PS-Launcher
 	arch = x86_64

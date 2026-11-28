@@ -17,8 +17,8 @@ android {
         applicationId "io.github.rbtswift.Pad2PSLauncher"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 20
-        versionName "1.0.19"
+        versionCode 21
+        versionName "1.0.20"
         buildConfigField "String", "STEAMGRIDDB_API_KEY", "\"${steamGridDbKey}\""
         buildConfigField "String", "IGDB_CLIENT_ID", "\"${igdbClientId}\""
         buildConfigField "String", "IGDB_CLIENT_SECRET", "\"${igdbClientSecret}\""
