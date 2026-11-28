@@ -1,0 +1,20 @@
+pad2ps-launcher (1.0.20) stable; urgency=medium
+
+  * Português (Brasil)
+    - Aplica a nova identidade visual do Pad2PS Launcher em todo o app: ícone do desktop (.png/.ico), atalhos Linux, página da loja, ícone do Google Play e ícones adaptativos do Android (fundo em degradê + glifo).
+    - Regenera as telas de abertura (splash) do Android com o novo ícone.
+    - Atualiza o Desktop e o Android para a versão 1.0.20 (versionCode 21).
+  * English
+    - Applies the new Pad2PS Launcher identity across the app: desktop icon (.png/.ico), Linux shortcuts, store assets, Google Play icon, and Android adaptive icons (gradient background + glyph).
+    - Regenerates the Android splash screens with the new icon.
+    - Updates Desktop and Android to version 1.0.20 (versionCode 21).
+  * Português (Brasil)
+    - Corrige a busca de metadados com Steam AppID, usando a correspondência exata da IGDB e os dados oficiais da Steam como alternativa.
+    - Restringe a busca por nome a jogos principais, remakes e remasters com título normalizado exatamente igual.
+    - Adiciona a ação Atualizar Metadados para substituir resultados incorretos já armazenados no cache local.
+  * English
+    - Fixes metadata lookup by Steam AppID, using IGDB's exact match and official Steam data as a fallback.
+    - Restricts title searches to main games, remakes, and remasters with an exactly matching normalized title.
+    - Adds an Update Metadata action to replace incorrect results already stored in the local cache.
+
+ -- Pad2PS Launcher <contato@pad2ps.com.br>  Sat, 28 Nov 2026 03:26:31 +0000
